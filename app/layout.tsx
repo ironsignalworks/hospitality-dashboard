@@ -14,41 +14,54 @@ const geistMono = Geist_Mono({
 });
 
 const brand = getBrand();
-const defaultTitle = `${brand.name} — Dashboard`;
+const defaultTitle = `${brand.name} — Hospitality operations dashboard`;
 const defaultDescription =
-  "Painel de operações (reservas, hóspedes, mensagens e conteúdo) com modo demo ou Supabase.";
+  "Reservations, guests, messaging, concierge, and occupancy for a small property. Live demo — no login.";
 
-function metadataBaseUrl(): URL | undefined {
-  const candidates = [
-    process.env.NEXT_PUBLIC_SITE_URL,
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
-  ];
-  for (const raw of candidates) {
-    if (!raw || raw.length === 0) continue;
-    try {
-      return new URL(raw);
-    } catch {
-      /* ignore */
-    }
+function toAbsoluteUrl(raw: string | undefined): URL | undefined {
+  if (!raw || raw.trim().length === 0) return undefined;
+  const value = raw.trim();
+  try {
+    return new URL(value.startsWith("http") ? value : `https://${value}`);
+  } catch {
+    return undefined;
   }
-  return undefined;
 }
 
+function metadataBaseUrl(): URL {
+  return (
+    toAbsoluteUrl(process.env.NEXT_PUBLIC_SITE_URL) ??
+    toAbsoluteUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL) ??
+    toAbsoluteUrl(process.env.VERCEL_URL) ??
+    new URL("https://hospitality-dashboard-theta.vercel.app")
+  );
+}
+
+const siteUrl = metadataBaseUrl();
+
 export const metadata: Metadata = {
-  metadataBase: metadataBaseUrl(),
+  metadataBase: siteUrl,
   title: defaultTitle,
   description: defaultDescription,
+  applicationName: brand.name,
   openGraph: {
     title: defaultTitle,
     description: defaultDescription,
-    type: "website",
-    locale: "pt_PT",
+    url: "/",
     siteName: brand.name,
+    locale: "en_US",
+    alternateLocale: ["pt_PT"],
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: defaultTitle,
     description: defaultDescription,
+  },
+  appleWebApp: {
+    title: brand.name,
+    capable: true,
+    statusBarStyle: "default",
   },
 };
 
