@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Tailwind `display:flex` can beat the UA rule that hides closed `<dialog>`. That
+   leaves a full-viewport in-flow node after the footer (looks like a black bar in
+   dark mode). Force closed dialogs out of layout. */
+.pitch-info-dialog:not([open]) {
+  display: none !important;
+}
+
+.pitch-info-dialog::backdrop {
+  /* Dimming lives on the in-dialog overlay so outside clicks reliably close. */
+  background: transparent;
+}
+
+/* Dashboard: hand (pointer) cursor on interactive elements */
+.dashboard-surface a[href] {
+  cursor: pointer;
+}
+.dashboard-surface button:not(:disabled) {
+  cursor: pointer;
+}
+.dashboard-surface button:disabled {
+  cursor: not-allowed;
+}
+.dashboard-surface input[type='submit']:not(:disabled),
+.dashboard-surface input[type='button']:not(:disabled),
+.dashboard-surface input[type='reset']:not(:disabled) {
+  cursor: pointer;
+}
+.dashboard-surface [role='button'] {
+  cursor: pointer;
+}
+.dashboard-surface [role='button'][aria-disabled='true'] {
+  cursor: not-allowed;
+}
+.dashboard-surface [role='tab'] {
+  cursor: pointer;
+}
+.dashboard-surface summary {
+  cursor: pointer;
+}
+.dashboard-surface select {
+  cursor: pointer;
+}
+.dashboard-surface label:has(input[type='checkbox']),
+.dashboard-surface label:has(input[type='radio']) {
+  cursor: pointer;
+}
