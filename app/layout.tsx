@@ -21,8 +21,6 @@ const defaultDescription =
 function metadataBaseUrl(): URL | undefined {
   const candidates = [
     process.env.NEXT_PUBLIC_SITE_URL,
-    process.env.URL,
-    process.env.DEPLOY_PRIME_URL,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
   ];
   for (const raw of candidates) {

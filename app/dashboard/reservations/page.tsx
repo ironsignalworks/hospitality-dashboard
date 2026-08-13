@@ -463,7 +463,7 @@ export default function ReservationsPage() {
         <div>
           <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">Reservas</h1>
           <p className="text-sm text-[#888] mt-1">
-            Calendario operacional (custom calendar ou integracao Google Calendar) + lista de reservas.
+            Calendário por quarto e canal, com sincronização iCal.
           </p>
         </div>
         <div className="flex gap-2">

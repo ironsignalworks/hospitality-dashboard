@@ -5,6 +5,8 @@ export const metadata = {
   title: `Painel · ${getBrand().name}`,
 };
 
+export const dynamic = 'force-dynamic';
+
 /** Auth for `/dashboard/*` is enforced in `proxy.ts` (middleware). Demo mode skips login there. */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (

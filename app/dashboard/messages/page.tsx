@@ -281,7 +281,7 @@ export default function MessagesPage() {
           <div>
             <h1 className="text-xl font-serif font-bold text-[#4A4A4A]">Mensagens</h1>
             <p className="text-xs text-[#888] mt-0.5">
-              Integracao com Gmail, Outlook ou qualquer provedor para comunicacao sem friccao.
+              Conversas por hóspede, com rascunhos assistidos por IA.
             </p>
             {unreadTotal > 0 && (
               <p className="text-xs text-red-500 font-medium">{unreadTotal} conversa(s) por responder</p>

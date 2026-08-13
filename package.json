@@ -1,13 +1,12 @@
 {
-  "name": "airbnb-pitch",
+  "name": "hospitality-dashboard",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "worker:sync": "tsx workers/sync-worker.ts"
+    "lint": "eslint"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
@@ -26,7 +25,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@netlify/functions": "^5.2.0",
     "@tailwindcss/postcss": "^4",
     "@types/google.maps": "^3.64.0",
     "@types/node": "^20",
@@ -35,7 +33,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
-    "tsx": "^4.19.0",
     "typescript": "^5"
   }
 }

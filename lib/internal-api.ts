@@ -3,14 +3,10 @@
  * On hosted production deploys, requests are rejected unless secrets are configured (fail closed).
  */
 
-/** True only on production-like deploys (not Vercel/Netlify preview unless NODE_ENV-only fallback). */
+/** True on Vercel production, otherwise falls back to NODE_ENV. */
 export function isProductionDeploy(): boolean {
   if (process.env.VERCEL_ENV) {
     return process.env.VERCEL_ENV === 'production';
-  }
-  const ctx = process.env.CONTEXT ?? process.env.NETLIFY_CONTEXT;
-  if (ctx) {
-    return ctx === 'production';
   }
   return process.env.NODE_ENV === 'production';
 }
@@ -34,7 +30,7 @@ export function isAuthorizedSyncTrigger(request: Request, cronSecret: string | u
   return h === `Bearer ${cronSecret}`;
 }
 
-/** CRON, Netlify, or `INTERNAL_API_SECRET` (handy for manual sync vs workers). */
+/** Vercel Cron (`CRON_SECRET`) or `INTERNAL_API_SECRET` (manual sync vs workers). */
 export function isAuthorizedCronOrInternalRequest(request: Request): boolean {
   const cron = process.env.CRON_SECRET;
   const internal = process.env.INTERNAL_API_SECRET;

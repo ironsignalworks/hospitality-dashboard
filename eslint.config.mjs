@@ -14,8 +14,6 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local agent/worktree artifacts:
     ".claude/**",
-    // Netlify build artifacts:
-    ".netlify/**",
   ]),
 ]);
 
