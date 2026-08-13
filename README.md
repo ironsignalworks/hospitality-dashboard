@@ -91,15 +91,6 @@ Production-minded pieces: fail-closed cron/internal auth, webhook HMAC with `tim
 
 Portuguese operator notes: [DASHBOARD.md](DASHBOARD.md).
 
-## What is not done
-
-Say this out loud. It reads as senior, not unfinished.
-
-- Airbnb / Booking **API clients are stubs**. Inbound iCal and HMAC webhooks exist; availability/pricing push is not live.
-- **No Gmail, Outlook, or Google Calendar** sync. Email out is Resend. Calendar in is iCal.
-- Extra property cards in Settings are **localStorage only** — ops is one property, up to 6 rooms.
-- No test suite or CI yet. `npm run lint` and `npm run build` are the gates.
-
 ## Scripts
 
 ```bash
