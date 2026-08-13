@@ -15,9 +15,9 @@ const CHANNEL_LABEL: Record<string, string> = {
 };
 
 const CHANNEL_COLOR: Record<string, string> = {
-  airbnb: 'bg-[#FF5A5F] text-white',
+  airbnb: 'bg-dash-airbnb text-white',
   booking: 'bg-[#003580] text-white',
-  direct: 'bg-[#708238] text-white',
+  direct: 'bg-dash-olive text-white',
 };
 
 function formatDatePT(dateStr: string) {
@@ -45,10 +45,10 @@ export function ProximasChegadasSection({ today, reservations }: { today: string
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-[#888] uppercase tracking-wide">Próximas chegadas</h2>
+        <h2 className="text-sm font-semibold text-dash-muted uppercase tracking-wide">Próximas chegadas</h2>
         <Link
           href="/dashboard/reservations"
-          className="text-xs text-[#DAA520] hover:underline flex items-center gap-1"
+          className="text-xs font-semibold text-dash-accent hover:underline flex items-center gap-1"
         >
           Ver todas <ArrowRight size={12} aria-hidden />
         </Link>
@@ -68,24 +68,19 @@ export function ProximasChegadasSection({ today, reservations }: { today: string
                   }
                 }}
                 className="flex w-full min-h-[3.25rem] items-center justify-between gap-3 rounded-xl border border-[#E0DBCF] bg-white px-4 py-3 text-left transition-colors hover:border-[#DAA520]/60 hover:bg-[#FFFCF6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] focus-visible:ring-offset-1"
-                aria-label={
-                  r.guest_id
-                    ? `Abrir dossié de ${guest?.name ?? 'hóspede'}`
-                    : 'Abrir reservas — reserva sem hóspede'
-                }
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-[#4A4A4A]">
                     {guest?.name ?? 'Hóspede sem nome'}
                   </p>
-                  <p className="mt-0.5 text-xs text-[#888]">
+                  <p className="mt-0.5 text-xs text-dash-muted">
                     {r.room} · {formatDatePT(r.check_in)} → {formatDatePT(r.check_out)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                      CHANNEL_COLOR[r.channel] ?? 'bg-[#888] text-white'
+                      CHANNEL_COLOR[r.channel] ?? 'bg-dash-muted text-white'
                     }`}
                   >
                     <ChannelIcon channel={r.channel} size={10} />

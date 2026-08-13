@@ -83,27 +83,27 @@ export default async function DashboardToday() {
         today={today}
         reservations={reservations}
       />
-      <p className="text-xs text-[#888] -mt-3">
+      <p className="text-xs text-dash-muted -mt-3">
         Centro de operacoes: monitorizacao diaria, atalhos e contexto em tempo real num unico painel.
       </p>
 
       {/* Quick actions — thumb-friendly on mobile */}
-      <section aria-label="Atalhos">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#888]">
+      <section aria-labelledby="hoje-atalhos-heading">
+        <h2 id="hoje-atalhos-heading" className="mb-2 text-xs font-semibold uppercase tracking-wide text-dash-muted">
           Atalhos
         </h2>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <DashboardNovaReservaAtalho />
           <Link
             href="/dashboard/historico-ocupacao"
-            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
+            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
-            <BarChart2 size={18} className="shrink-0 text-[#708238]" aria-hidden />
+            <BarChart2 size={18} className="shrink-0 text-dash-olive" aria-hidden />
             Ocupação
           </Link>
           <Link
             href="/dashboard/messages"
-            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
+            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
             <MessageSquare size={18} className="shrink-0 text-[#4A4A4A]" aria-hidden />
             Mensagens
@@ -115,16 +115,16 @@ export default async function DashboardToday() {
           </Link>
           <Link
             href="/dashboard/content"
-            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
+            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
-            <FileEdit size={18} className="shrink-0 text-[#BC6C25]" aria-hidden />
+            <FileEdit size={18} className="shrink-0 text-dash-checkout" aria-hidden />
             Concierge
           </Link>
           <Link
             href="/dashboard/guests"
-            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
+            className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
-            <Users size={18} className="shrink-0 text-[#DAA520]" aria-hidden />
+            <Users size={18} className="shrink-0 text-dash-accent" aria-hidden />
             Hóspedes
           </Link>
         </div>
@@ -139,7 +139,7 @@ export default async function DashboardToday() {
 
       {/* Room occupancy */}
       <section>
-        <h2 className="text-sm font-semibold text-[#888] uppercase tracking-wide mb-3">
+        <h2 className="text-sm font-semibold text-dash-muted uppercase tracking-wide mb-3">
           Quartos — estado atual
         </h2>
         <HojeRoomCardsWithSettingsClient today={today} reservations={reservations} />
@@ -148,10 +148,10 @@ export default async function DashboardToday() {
       {/* 7-day strip — horizontal scroll + snap on narrow screens */}
       <section>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#888]">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-dash-muted">
             Próximos 7 dias
           </h2>
-          <p className="text-xs text-[#AAA] sm:hidden">Deslize para ver todos os dias</p>
+          <p className="text-xs text-dash-muted sm:hidden">Deslize para ver todos os dias</p>
         </div>
         <div className="-mx-1">
           <HojeSevenDayGridClient today={today} days={days} reservations={reservations} />
@@ -161,12 +161,12 @@ export default async function DashboardToday() {
       <ProximasChegadasSection today={today} reservations={reservations} />
 
       {reservations.length === 0 && (
-        <div className="text-center py-16 text-[#888]">
+        <div className="text-center py-16 text-dash-muted">
           <TrendingUp size={40} className="mx-auto mb-3 opacity-30" aria-hidden />
           <p className="font-medium">Sem reservas nos próximos 7 dias</p>
           <Link
             href="/dashboard/reservations"
-            className="mt-3 inline-block text-sm text-[#DAA520] hover:underline"
+            className="mt-3 inline-block text-sm font-semibold text-dash-accent hover:underline"
           >
             Adicionar reserva manual
           </Link>

@@ -14,6 +14,12 @@ html {
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* WCAG AA on white / #F8F9FA (4.5:1+) */
+  --color-dash-muted: #57534e;
+  --color-dash-accent: #6b4e00;
+  --color-dash-olive: #3f4f1c;
+  --color-dash-checkout: #7a4416;
+  --color-dash-airbnb: #b42318;
 }
 
 @media (prefers-color-scheme: dark) {

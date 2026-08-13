@@ -26,9 +26,9 @@ const CHANNEL_LABEL: Record<string, string> = {
   direct: 'Direto',
 };
 const CHANNEL_COLOR: Record<string, string> = {
-  airbnb: 'bg-[#FF5A5F] text-white',
+  airbnb: 'bg-dash-airbnb text-white',
   booking: 'bg-[#003580] text-white',
-  direct: 'bg-[#708238] text-white',
+  direct: 'bg-dash-olive text-white',
 };
 
 export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
@@ -82,8 +82,8 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
                   <BedDouble size={18} className="text-[#CCC] group-hover:text-[#DAA520]/60 transition-colors" aria-hidden />
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm opacity-50">Livre</p>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-[#DAA520] font-medium">
+                  <p className="text-sm text-dash-muted">Livre</p>
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-dash-accent font-medium">
                     <Plus size={11} aria-hidden />
                     Reservar
                   </span>
@@ -111,12 +111,12 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
               {(card.isCheckinToday || card.isCheckoutToday) && (
                 <div className="flex items-center gap-1.5 flex-wrap mb-1">
                   {card.isCheckinToday && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#708238] text-white font-semibold">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dash-olive text-white font-semibold">
                       Check-in hoje
                     </span>
                   )}
                   {card.isCheckoutToday && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#BC6C25] text-white font-semibold">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dash-checkout text-white font-semibold">
                       Check-out hoje
                     </span>
                   )}
@@ -124,7 +124,7 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
               )}
 
               <p className="text-sm font-medium truncate">{card.guestName ?? 'Hóspede'}</p>
-              <p className="text-xs opacity-70 mt-0.5">
+              <p className="text-xs text-white mt-0.5">
                 {card.nightsLeft === 0
                   ? 'Última noite'
                   : card.nightsLeft === 1
@@ -132,7 +132,7 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
                     : `${card.nightsLeft} noites restantes`}
                 {' · '}até {card.checkOut}
               </p>
-              <span className={`inline-flex items-center gap-1 mt-2 text-xs px-2 py-0.5 rounded-full ${CHANNEL_COLOR[card.channel] ?? 'bg-[#888] text-white'}`}>
+              <span className={`inline-flex items-center gap-1 mt-2 text-xs px-2 py-0.5 rounded-full ${CHANNEL_COLOR[card.channel] ?? 'bg-dash-muted text-white'}`}>
                 <ChannelIcon channel={card.channel} size={10} />
                 {CHANNEL_LABEL[card.channel] ?? card.channel}
               </span>

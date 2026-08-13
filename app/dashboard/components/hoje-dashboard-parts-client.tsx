@@ -30,19 +30,19 @@ export function HojeOccupationHeaderClient({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B8860B]">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-dash-accent">
           {salutation}
         </p>
         <h1 className="mt-1 text-2xl font-bold font-serif text-[#4A4A4A] sm:text-3xl">
           Hoje, {formatDatePT(today)}
         </h1>
-        <p className="mt-1 text-sm text-[#888]">
+        <p className="mt-1 text-sm text-dash-muted">
           {appSettings.property_name} · {occupiedCount}/{appSettings.room_count} quartos ocupados
         </p>
       </div>
       <div className="flex items-center gap-3 rounded-2xl border border-[#E8E4DA] bg-white px-4 py-3 shadow-sm sm:max-w-xs sm:shrink-0">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-[#888]">Ocupação agora</p>
+          <p className="text-xs font-medium text-dash-muted">Ocupação agora</p>
           <p className="text-lg font-bold tabular-nums text-[#4A4A4A]">{occupancyPct}%</p>
         </div>
         <div
@@ -121,13 +121,13 @@ export function HojeSevenDayGridClient({
             href="/dashboard/reservations"
             className={`w-[4.5rem] shrink-0 snap-center rounded-xl border p-3 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] focus-visible:ring-offset-1 sm:w-auto sm:snap-normal ${
               isToday
-                ? 'border-[#DAA520] bg-[#DAA520] text-white shadow-md ring-2 ring-[#DAA520]/30 hover:bg-[#C9961C]'
+                ? 'border-dash-accent bg-[#DAA520] text-[#1A1500] shadow-md ring-2 ring-[#DAA520]/40 hover:bg-[#C9961C]'
                 : 'border-[#E0DBCF] bg-white text-[#4A4A4A] shadow-sm hover:border-[#DAA520]/60 hover:bg-[#FFFCF6]'
             }`}
           >
             <p
               className={`text-[10px] font-semibold uppercase leading-tight sm:text-xs ${
-                isToday ? 'text-white/80' : 'opacity-70'
+                isToday ? 'text-[#3D2E00]' : 'text-dash-muted'
               }`}
             >
               {new Date(day + 'T00:00:00').toLocaleDateString('pt-PT', { weekday: 'short' })}
@@ -138,10 +138,10 @@ export function HojeSevenDayGridClient({
             <p
               className={`mt-1 text-[11px] font-semibold tabular-nums sm:text-xs ${
                 isToday
-                  ? 'text-white/90'
+                  ? 'text-[#3D2E00]'
                   : dayReservations.length > 0
-                    ? 'text-[#708238]'
-                    : 'text-[#CCC]'
+                    ? 'text-dash-olive'
+                    : 'text-dash-muted'
               }`}
             >
               {dayReservations.length}/{appSettings.room_count}

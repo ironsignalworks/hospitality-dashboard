@@ -226,7 +226,7 @@ export default function DashboardSidebar() {
           </Link>
           <NotificationBell alerts={alerts} dueAlerts={dueAlerts} dismiss={dismiss} />
         </div>
-        <p className="text-xs text-[#888] mt-1 ml-9">Painel de gestão</p>
+        <p className="text-xs text-dash-muted mt-1 ml-9">Painel de gestão</p>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Navegação principal">
@@ -239,8 +239,8 @@ export default function DashboardSidebar() {
               onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] ${
                 active
-                  ? 'bg-[#DAA520]/10 text-[#B8860B]'
-                  : 'text-[#666] hover:bg-[#F0EDE6] hover:text-[#4A4A4A]'
+                  ? 'bg-[#F3E6C0] text-dash-accent'
+                  : 'text-[#4A4A4A] hover:bg-[#F0EDE6] hover:text-[#1F1F1F]'
               }`}
             >
               <Icon size={18} aria-hidden />
@@ -254,7 +254,7 @@ export default function DashboardSidebar() {
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#666] hover:bg-red-50 hover:text-red-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#4A4A4A] hover:bg-red-50 hover:text-red-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
         >
           <LogOut size={18} aria-hidden />
           Sair
@@ -336,12 +336,12 @@ export default function DashboardSidebar() {
                 <Link
                   href={href}
                   className={`flex flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[10px] font-semibold leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
-                    active ? 'text-[#B8860B]' : 'text-[#888] hover:text-[#4A4A4A]'
+                    active ? 'text-dash-accent' : 'text-dash-muted hover:text-[#4A4A4A]'
                   }`}
                 >
                   <span
                     className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
-                      active ? 'bg-[#DAA520]/15 text-[#B8860B]' : 'text-[#666]'
+                      active ? 'bg-[#F3E6C0] text-dash-accent' : 'text-[#4A4A4A]'
                     }`}
                   >
                     <Icon size={20} strokeWidth={active ? 2.25 : 2} aria-hidden />

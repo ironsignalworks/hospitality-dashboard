@@ -21,9 +21,9 @@ const CHANNEL_LABEL: Record<string, string> = {
 };
 
 const CHANNEL_COLOR: Record<string, string> = {
-  airbnb: 'bg-[#FF5A5F] text-white',
+  airbnb: 'bg-dash-airbnb text-white',
   booking: 'bg-[#003580] text-white',
-  direct: 'bg-[#708238] text-white',
+  direct: 'bg-dash-olive text-white',
 };
 
 type ModalId = 'checkin' | 'checkout' | 'staying' | 'messages' | null;
@@ -86,56 +86,56 @@ export function DashboardTodayKpis({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <button
           type="button"
-          aria-label={`Check-ins hoje, ${checkIns.length} reservas. Abrir lista.`}
           onClick={() => setOpen('checkin')}
           className="text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] rounded-2xl"
         >
           <StatCard
             label="Check-ins hoje"
             value={checkIns.length}
-            icon={<CalendarCheck size={20} className="text-[#708238]" />}
-            accent="border-[#708238]"
+            icon={<CalendarCheck size={20} className="text-dash-olive" aria-hidden />}
+            accent="border-dash-olive"
           />
+          <span className="sr-only">Abrir lista</span>
         </button>
         <button
           type="button"
-          aria-label={`Check-outs hoje, ${checkOuts.length} reservas. Abrir lista.`}
           onClick={() => setOpen('checkout')}
           className="text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] rounded-2xl"
         >
           <StatCard
             label="Check-outs hoje"
             value={checkOuts.length}
-            icon={<CalendarX size={20} className="text-[#BC6C25]" />}
-            accent="border-[#BC6C25]"
+            icon={<CalendarX size={20} className="text-dash-checkout" aria-hidden />}
+            accent="border-dash-checkout"
           />
+          <span className="sr-only">Abrir lista</span>
         </button>
         <button
           type="button"
-          aria-label={`A ficar hoje, ${staying.length} hóspedes. Abrir lista.`}
           onClick={() => setOpen('staying')}
           className="text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] rounded-2xl"
         >
           <StatCard
             label="A ficar"
             value={staying.length}
-            icon={<BedDouble size={20} className="text-[#DAA520]" />}
+            icon={<BedDouble size={20} className="text-dash-accent" aria-hidden />}
             accent="border-[#DAA520]"
           />
+          <span className="sr-only">Abrir lista</span>
         </button>
         <button
           type="button"
-          aria-label={`Mensagens novas, ${unreadCount} por ler. Abrir opções.`}
           onClick={() => setOpen('messages')}
           className="text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] rounded-2xl"
         >
           <StatCard
             label="Mensagens novas"
             value={unreadCount}
-            icon={<MessageSquare size={20} className="text-[#4A4A4A]" />}
-            accent={unreadCount > 0 ? 'border-red-400' : 'border-[#4A4A4A]'}
+            icon={<MessageSquare size={20} className="text-[#4A4A4A]" aria-hidden />}
+            accent={unreadCount > 0 ? 'border-red-700' : 'border-[#4A4A4A]'}
             highlight={unreadCount > 0}
           />
+          <span className="sr-only">Abrir opções</span>
         </button>
       </div>
 
@@ -160,7 +160,7 @@ export function DashboardTodayKpis({
                   {open === 'messages' && 'Mensagens'}
                 </h2>
                 {open === 'checkin' && (
-                  <p className="text-sm text-[#888] mt-0.5">
+                  <p className="text-sm text-[#666] mt-0.5">
                     {checkIns.length === 0
                       ? 'Ninguém com chegada prevista hoje.'
                       : `${checkIns.length} chegada${checkIns.length > 1 ? 's' : ''} prevista${
@@ -169,21 +169,21 @@ export function DashboardTodayKpis({
                   </p>
                 )}
                 {open === 'checkout' && (
-                  <p className="text-sm text-[#888] mt-0.5">
+                  <p className="text-sm text-[#666] mt-0.5">
                     {checkOuts.length === 0
                       ? 'Ninguém com partida hoje.'
                       : `${checkOuts.length} partida${checkOuts.length > 1 ? 's' : ''} hoje.`}
                   </p>
                 )}
                 {open === 'staying' && (
-                  <p className="text-sm text-[#888] mt-0.5">
+                  <p className="text-sm text-[#666] mt-0.5">
                     {staying.length === 0
                       ? 'Nenhum hóspede a ocupar a casa entre a noite passada e a próxima.'
                       : `${staying.length} hóspede${staying.length > 1 ? 's' : ''} a ficar em casa hoje (check-in feito, check-out a seguir).`}
                   </p>
                 )}
                 {open === 'messages' && (
-                  <p className="text-sm text-[#888] mt-0.5">
+                  <p className="text-sm text-[#666] mt-0.5">
                     {unreadCount === 0
                       ? 'Nenhuma mensagem por ler.'
                       : `${unreadCount} conversa${unreadCount > 1 ? 's' : ''} com mensagem nova do hóspede.`}
@@ -193,10 +193,10 @@ export function DashboardTodayKpis({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
+                className="p-1.5 rounded-lg text-dash-muted hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
                 aria-label="Fechar"
               >
-                <X size={20} />
+                <X size={20} aria-hidden />
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -275,7 +275,7 @@ function StatCard({
         <span className="shrink-0 pt-0.5">{icon}</span>
         <span className="text-2xl font-bold tabular-nums text-[#4A4A4A] sm:text-3xl">{value}</span>
       </div>
-      <p className="text-[11px] font-medium leading-snug text-[#888] sm:text-xs">{label}</p>
+      <p className="text-[11px] font-medium leading-snug text-dash-muted sm:text-xs">{label}</p>
     </div>
   );
 }
@@ -290,7 +290,7 @@ function ReservationListModal({
   onOpenDossie: (r: Reservation) => void;
 }) {
   if (list.length === 0) {
-    return <p className="py-6 text-center text-sm text-[#888]">{empty}</p>;
+    return <p className="py-6 text-center text-sm text-dash-muted">{empty}</p>;
   }
   return (
     <ul className="space-y-2">
@@ -305,20 +305,19 @@ function ReservationListModal({
                 type="button"
                 onClick={() => onOpenDossie(r)}
                 className="group flex min-h-[3.25rem] w-full items-center justify-between gap-3 rounded-xl border border-[#E0DBCF] bg-[#FFFCF6] px-4 py-3 text-left transition-colors hover:border-[#DAA520]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                aria-label={`Abrir dossié da reserva: ${r.room}, ${name}`}
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-[#4A4A4A] underline-offset-2 group-hover:underline">
                     {name}
                   </p>
-                  <p className="mt-0.5 text-xs text-[#888]">
+                  <p className="mt-0.5 text-xs text-dash-muted">
                     {r.room} · {formatDatePT(stripTZ(r.check_in))} → {formatDatePT(stripTZ(r.check_out))}
-                    <span className="text-[#DAA520]"> · Dossié</span>
+                    <span className="text-dash-accent"> · Dossié</span>
                   </p>
                 </div>
                 <span
                   className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                    CHANNEL_COLOR[r.channel] ?? 'bg-[#888] text-white'
+                    CHANNEL_COLOR[r.channel] ?? 'bg-dash-muted text-white'
                   }`}
                 >
                   <ChannelIcon channel={r.channel} size={10} />
@@ -332,7 +331,7 @@ function ReservationListModal({
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-[#4A4A4A]">{name}</p>
-                  <p className="mt-0.5 text-xs text-[#888]">
+                  <p className="mt-0.5 text-xs text-dash-muted">
                     {r.room} · {formatDatePT(stripTZ(r.check_in))} → {formatDatePT(stripTZ(r.check_out))}
                     {' · '}
                     <span className="text-[#999]">Sem hóspede</span>
@@ -340,7 +339,7 @@ function ReservationListModal({
                 </div>
                 <span
                   className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                    CHANNEL_COLOR[r.channel] ?? 'bg-[#888] text-white'
+                    CHANNEL_COLOR[r.channel] ?? 'bg-dash-muted text-white'
                   }`}
                 >
                   <ChannelIcon channel={r.channel} size={10} />

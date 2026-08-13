@@ -7,7 +7,7 @@ import { QuickReservationModal } from './quick-reservation-modal';
 import { useSettings } from '@/lib/hooks/use-settings';
 
 const BTN =
-  'inline-flex min-h-[3rem] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4';
+  'inline-flex min-h-[3rem] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4';
 
 /**
  * "Nova reserva" in Atalhos: opens the same quick modal as the empty room cards.
