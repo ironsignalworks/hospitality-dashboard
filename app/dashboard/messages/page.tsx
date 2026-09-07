@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { IS_DEMO, MOCK_MESSAGES } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import {
   MessageSquare,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { Message } from '@/lib/types';
 import { useLocale, localeToBcp47, type Locale } from '@/lib/i18n';
+import { fetchApiJson } from '@/lib/api-client';
 
 type MessageWithRelations = Message & {
   guest: { name: string; id: string } | null;
@@ -91,7 +92,12 @@ export default function MessagesPage() {
 
   const fetchMessages = useCallback(async () => {
     if (IS_DEMO) {
-      setMessages(MOCK_MESSAGES as unknown as MessageWithRelations[]);
+      try {
+        const json = await fetchApiJson<{ data: MessageWithRelations[] }>('/api/messages');
+        setMessages(json.data);
+      } catch {
+        setFetchError(t('messages.loadError'));
+      }
       setLoading(false);
       return;
     }
@@ -131,9 +137,16 @@ export default function MessagesPage() {
 
   async function markHandled(msgIds: string[]) {
     if (IS_DEMO) {
-      setMessages((prev) =>
-        prev.map((m) => (msgIds.includes(m.id) ? { ...m, handled: true } : m))
+      await Promise.all(
+        msgIds.map((id) =>
+          fetchApiJson('/api/messages', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, handled: true }),
+          })
+        )
       );
+      await fetchMessages();
       return;
     }
     for (const id of msgIds) {
@@ -156,19 +169,18 @@ export default function MessagesPage() {
     if (!replyText.trim() || !selected) return;
     setSending(true);
     if (IS_DEMO) {
-      const newMsg = {
-        id: `demo-${Date.now()}`,
-        reservation_id: selected.messages[0]?.reservation_id ?? null,
-        guest_id: selected.guestId,
-        body: replyText.trim(),
-        role: 'owner' as const,
-        handled: true,
-        created_at: new Date().toISOString(),
-        guest: selected.messages[0]?.guest ?? null,
-        reservation: selected.messages[0]?.reservation ?? null,
-      } as unknown as MessageWithRelations;
-      setMessages((prev) => [...prev, newMsg]);
+      await fetchApiJson('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          body: replyText.trim(),
+          role: 'owner',
+          reservation_id: selected.messages[0]?.reservation_id ?? null,
+          guest_id: selected.guestId,
+        }),
+      });
       setReplyText('');
+      await fetchMessages();
       setSending(false);
       return;
     }
@@ -190,22 +202,21 @@ export default function MessagesPage() {
     const scheduledAtISO = new Date(scheduleAt).toISOString();
 
     if (IS_DEMO) {
-      const newMsg = {
-        id: `demo-${Date.now()}`,
-        reservation_id: selected.messages[0]?.reservation_id ?? null,
-        guest_id: selected.guestId,
-        body: replyText.trim(),
-        role: 'owner' as const,
-        handled: true,
-        scheduled_at: scheduledAtISO,
-        created_at: scheduledAtISO,
-        guest: selected.messages[0]?.guest ?? null,
-        reservation: selected.messages[0]?.reservation ?? null,
-      } as unknown as MessageWithRelations;
-      setMessages((prev) => [...prev, newMsg]);
+      await fetchApiJson('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          body: replyText.trim(),
+          role: 'owner',
+          reservation_id: selected.messages[0]?.reservation_id ?? null,
+          guest_id: selected.guestId,
+          scheduled_at: scheduledAtISO,
+        }),
+      });
       setReplyText('');
       setScheduleMode(false);
       setScheduleAt('');
+      await fetchMessages();
       setScheduling(false);
       return;
     }
@@ -227,7 +238,8 @@ export default function MessagesPage() {
 
   async function cancelScheduled(msgId: string) {
     if (IS_DEMO) {
-      setMessages((prev) => prev.filter((m) => m.id !== msgId));
+      await fetchApiJson(`/api/messages?id=${encodeURIComponent(msgId)}`, { method: 'DELETE' });
+      await fetchMessages();
       return;
     }
     await supabase!.from('messages').delete().eq('id', msgId);
@@ -238,20 +250,14 @@ export default function MessagesPage() {
     if (!newBody.trim()) return;
     setSubmitting(true);
     if (IS_DEMO) {
-      const guestMsg = {
-        id: `demo-${Date.now()}`,
-        reservation_id: null,
-        guest_id: null,
-        body: newBody.trim(),
-        role: 'guest' as const,
-        handled: false,
-        created_at: new Date().toISOString(),
-        guest: null,
-        reservation: null,
-      } as unknown as MessageWithRelations;
-      setMessages((prev) => [...prev, guestMsg]);
+      await fetchApiJson('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guestMessage: newBody.trim() }),
+      });
       setNewBody('');
       setNewMsgOpen(false);
+      await fetchMessages();
       setSubmitting(false);
       return;
     }

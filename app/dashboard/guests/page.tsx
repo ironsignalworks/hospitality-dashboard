@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import {
   Search,
@@ -17,6 +17,7 @@ import {
 import type { Guest, GuestAlert, Reservation } from '@/lib/types';
 import { useLocale, tChannel, displayRoomLabel } from '@/lib/i18n';
 import { formatDate, formatDateTime, stripTZ } from '@/lib/dashboard-date-helpers';
+import { fetchApiJson } from '@/lib/api-client';
 
 const DATE_NUM: Intl.DateTimeFormatOptions = {
   day: '2-digit',
@@ -74,15 +75,23 @@ export default function GuestsPage() {
 
   const fetchGuests = useCallback(async () => {
     if (IS_DEMO) {
-      const withStats: GuestWithStats[] = MOCK_GUESTS.map((g) => {
-        const gRes = MOCK_RESERVATIONS.filter((r) => r.guest_id === g.id);
-        const last = gRes.reduce<string | null>(
-          (acc, r) => (!acc || r.check_in > acc ? r.check_in : acc),
-          null
-        );
-        return { ...g, reservation_count: gRes.length, last_stay: last };
-      });
-      setGuests(withStats);
+      try {
+        const [gJson, rJson] = await Promise.all([
+          fetchApiJson<{ data: Guest[] }>('/api/guests'),
+          fetchApiJson<{ data: Reservation[] }>('/api/reservations'),
+        ]);
+        const withStats: GuestWithStats[] = gJson.data.map((g) => {
+          const gRes = rJson.data.filter((r) => r.guest_id === g.id);
+          const last = gRes.reduce<string | null>(
+            (acc, r) => (!acc || r.check_in > acc ? r.check_in : acc),
+            null
+          );
+          return { ...g, reservation_count: gRes.length, last_stay: last };
+        });
+        setGuests(withStats);
+      } catch {
+        setFetchError(t('guests.loadError'));
+      }
       setLoading(false);
       return;
     }
@@ -147,9 +156,14 @@ export default function GuestsPage() {
     setNewAlertTime('');
     loadGuestAlerts(g.id);
     if (IS_DEMO) {
-      setGuestReservations(
-        MOCK_RESERVATIONS.filter((r) => r.guest_id === g.id) as unknown as Reservation[]
-      );
+      try {
+        const json = await fetchApiJson<{ data: Reservation[] }>(
+          `/api/reservations?guest_id=${encodeURIComponent(g.id)}`
+        );
+        setGuestReservations(json.data);
+      } catch {
+        setGuestReservations([]);
+      }
       return;
     }
     const { data } = await supabase!
@@ -166,7 +180,13 @@ export default function GuestsPage() {
     notesTimer.current = setTimeout(async () => {
       if (!selected) return;
       setNotesSaving(true);
-      if (!IS_DEMO) {
+      if (IS_DEMO) {
+        await fetchApiJson('/api/guests', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selected.id, notes: value }),
+        }).catch(() => {});
+      } else {
         await supabase!.from('guests').update({ notes: value }).eq('id', selected.id);
       }
       setNotesSaving(false);

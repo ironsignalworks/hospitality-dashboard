@@ -23,7 +23,8 @@ import {
   ArrowLeft,
   FileText,
 } from 'lucide-react';
-import { IS_DEMO, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
+import { fetchApiJson } from '@/lib/api-client';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { createClient } from '@/lib/supabase';
 import type { Reservation, Channel } from '@/lib/types';
@@ -206,8 +207,9 @@ export function OccupancyDashboard() {
       setErr(null);
       try {
         if (IS_DEMO) {
+          const json = await fetchApiJson<{ data: Reservation[] }>('/api/reservations');
           if (!c) return;
-          setList(MOCK_RESERVATIONS.map((r) => ({ ...r })));
+          setList(json.data);
           return;
         }
         const supabase = createClient();

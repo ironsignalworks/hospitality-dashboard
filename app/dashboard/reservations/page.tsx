@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import {
   ChevronLeft,
@@ -23,6 +23,7 @@ import { useSettings } from '@/lib/hooks/use-settings';
 import { ROOMS } from '@/lib/config/rooms';
 import { useLocale, tChannel, tStatus, displayRoomLabel, type TFunction, type Locale } from '@/lib/i18n';
 import { formatDate, formatMonthYear, weekdayHeaders, stripTZ } from '@/lib/dashboard-date-helpers';
+import { fetchApiJson } from '@/lib/api-client';
 
 const CHANNEL_COLOR: Record<string, string> = {
   airbnb: 'bg-[#FF5A5F] text-white',
@@ -136,7 +137,12 @@ export default function ReservationsPage() {
 
   const fetchReservations = useCallback(async () => {
     if (IS_DEMO) {
-      setReservations(MOCK_RESERVATIONS as unknown as Reservation[]);
+      try {
+        const json = await fetchApiJson<{ data: Reservation[] }>('/api/reservations');
+        setReservations(json.data);
+      } catch {
+        showNotice('error', t('reservations.loadError'));
+      }
       setLoading(false);
       return;
     }
@@ -235,66 +241,29 @@ export default function ReservationsPage() {
 
     try {
       if (IS_DEMO) {
-        const guestId =
-          editing?.guest_id ?? `g-demo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        const reservationId =
-          editing?.id ?? `r-demo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        const nowIso = new Date().toISOString();
-        const email = form.guest_email.trim() || null;
-
-        let demoGuest: Guest;
-        if (editing?.guest_id) {
-          const gi = MOCK_GUESTS.findIndex((g) => g.id === editing.guest_id);
-          if (gi >= 0) {
-            demoGuest = { ...MOCK_GUESTS[gi], name: form.guest_name, email };
-            MOCK_GUESTS[gi] = demoGuest;
-          } else {
-            demoGuest = {
-              id: guestId,
-              name: form.guest_name,
-              email,
-              phone: null,
-              nationality: null,
-              notes: '',
-              created_at: nowIso,
-            };
-            MOCK_GUESTS.push(demoGuest);
-          }
-        } else {
-          demoGuest = {
-            id: guestId,
-            name: form.guest_name,
-            email,
-            phone: null,
-            nationality: null,
-            notes: '',
-            created_at: nowIso,
-          };
-          MOCK_GUESTS.push(demoGuest);
-        }
-
-        const demoRes: Reservation = {
-          id: reservationId,
-          guest_id: guestId,
+        const payload = {
+          guest_name: form.guest_name,
+          guest_email: form.guest_email.trim() || null,
           room: form.room,
           check_in: form.check_in,
           check_out: form.check_out,
           channel: form.channel,
           status: form.status,
           total_eur: form.total_eur ? parseFloat(form.total_eur) : null,
-          external_id: null,
-          internal_notes: (editing?.internal_notes as string | null | undefined) ?? null,
-          created_at: nowIso,
-          guest: demoGuest,
         };
-
-        const ri = MOCK_RESERVATIONS.findIndex((r) => r.id === reservationId);
-        if (ri >= 0) {
-          MOCK_RESERVATIONS[ri] = demoRes;
+        if (editing) {
+          await fetchApiJson('/api/reservations', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editing.id, ...payload }),
+          });
         } else {
-          MOCK_RESERVATIONS.push(demoRes);
+          await fetchApiJson('/api/reservations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
         }
-
         await fetchReservations();
         setModalOpen(false);
         setSaving(false);
@@ -347,8 +316,12 @@ export default function ReservationsPage() {
     } catch (e) {
       setSaving(false);
       const msg = e instanceof Error ? e.message : t('reservations.saveFailed');
-      setFormError(msg);
-      showNotice('error', msg);
+      const shown =
+        msg.toLowerCase().includes('conflict') || msg.toLowerCase().includes('double booking')
+          ? t('reservations.conflict')
+          : msg;
+      setFormError(shown);
+      showNotice('error', shown);
     }
   }
 
@@ -356,9 +329,8 @@ export default function ReservationsPage() {
     if (!confirm(t('reservations.confirmDelete'))) return;
     try {
       if (IS_DEMO) {
-        const idx = MOCK_RESERVATIONS.findIndex((r) => r.id === id);
-        if (idx >= 0) MOCK_RESERVATIONS.splice(idx, 1);
-        setReservations((prev) => prev.filter((r) => r.id !== id));
+        await fetchApiJson(`/api/reservations?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        await fetchReservations();
         showNotice('success', t('reservations.deleted'));
         return;
       }

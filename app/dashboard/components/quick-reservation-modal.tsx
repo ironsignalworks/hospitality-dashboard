@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import type { Channel, Guest, Reservation, ReservationStatus } from '@/lib/types';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { useT, tChannel, tStatus, displayRoomLabel } from '@/lib/i18n';
+import { fetchApiJson } from '@/lib/api-client';
 
 const INPUT = 'w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] focus:border-transparent bg-white';
 
@@ -64,7 +65,10 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
 
     try {
       if (IS_DEMO) {
-        const res = await fetch('/api/demo/reservations', {
+        const json = await fetchApiJson<{
+          guest?: { id: string; name: string; email?: string | null };
+          reservation?: { id: string };
+        }>('/api/reservations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -78,68 +82,9 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
             total_eur: form.total_eur,
           }),
         });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json.ok) {
-          throw new Error(String(json.error ?? t('reservations.saveFailed')));
-        }
-
-        const guestId = (json.guest?.id as string | undefined) ?? null;
-        const guestName = (json.guest?.name as string | undefined) ?? form.guest_name;
-        const reservationId = (json.reservation?.id as string | undefined) ?? null;
-
-        // Keep the browser demo store in sync so the GuestPanel can render immediately.
-        const demoEmail =
-          (json.guest?.email as string | null | undefined) ?? (form.guest_email.trim() || null);
-        let demoGuest: Guest | null = null;
-        if (guestId) {
-          const existingG = MOCK_GUESTS.some((g) => g.id === guestId);
-          if (!existingG) {
-            const g: Guest = {
-              id: guestId,
-              name: guestName,
-              email: demoEmail,
-              phone: null,
-              nationality: null,
-              notes: '',
-              created_at: new Date().toISOString(),
-            };
-            MOCK_GUESTS.push(g);
-            demoGuest = g;
-          } else {
-            demoGuest = MOCK_GUESTS.find((g) => g.id === guestId) ?? null;
-          }
-        }
-        if (reservationId && guestId) {
-          const existingR = MOCK_RESERVATIONS.some((r) => r.id === reservationId);
-          if (!existingR) {
-            const r: Reservation = {
-              id: reservationId,
-              guest_id: guestId,
-              room: form.room,
-              check_in: form.check_in,
-              check_out: form.check_out,
-              channel: form.channel,
-              status: form.status,
-              total_eur: form.total_eur ? parseFloat(form.total_eur) : null,
-              external_id: null,
-              internal_notes: null,
-              created_at: new Date().toISOString(),
-              guest:
-                demoGuest ??
-                ({
-                  id: guestId,
-                  name: guestName,
-                  email: demoEmail,
-                  phone: null,
-                  nationality: null,
-                  notes: '',
-                  created_at: new Date().toISOString(),
-                } satisfies Guest),
-            };
-            MOCK_RESERVATIONS.push(r);
-          }
-        }
-
+        const guestId = json.guest?.id ?? null;
+        const guestName = json.guest?.name ?? form.guest_name;
+        const reservationId = json.reservation?.id ?? null;
         setSaving(false);
         onSaved?.({
           ok: true,
@@ -210,7 +155,11 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       onClose();
     } catch (e) {
       setSaving(false);
-      const msg = e instanceof Error ? e.message : t('reservations.saveFailed');
+      const raw = e instanceof Error ? e.message : t('reservations.saveFailed');
+      const msg =
+        raw.toLowerCase().includes('conflict') || raw.toLowerCase().includes('double booking')
+          ? t('reservations.conflict')
+          : raw;
       setFormError(msg);
       onSaved?.({
         ok: false,

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
+import { fetchApiJson } from '@/lib/api-client';
 import { createClient } from '@/lib/supabase';
 import { X, Mail, Phone, Loader2 } from 'lucide-react';
 import { ChannelIcon } from './channel-icon';
@@ -66,23 +67,41 @@ export function GuestPanel({ guestId, guestName, reservationId, onClose }: Guest
         setLastSavedResNotes('');
       }
       if (IS_DEMO) {
-        const g = (MOCK_GUESTS.find((x) => x.id === guestId) ?? null) as Guest | null;
-        if (cancelled) return;
-        setGuest(g);
-        applyLoadedGuest(g);
-        setReservations(MOCK_RESERVATIONS.filter((r) => r.guest_id === guestId) as unknown as Reservation[]);
-        if (reservationId) {
-          const row = MOCK_RESERVATIONS.find((x) => x.id === reservationId);
-          if (row && row.guest_id === guestId) {
-            const n = (row.internal_notes as string | null) ?? '';
-            if (!cancelled) { setResNotesDraft(n); setLastSavedResNotes(n); }
-          } else if (!cancelled) {
-            setResNotesDraft('');
-            setLastSavedResNotes('');
+        try {
+          const [gJson, rJson] = await Promise.all([
+            fetchApiJson<{ data: Guest }>(`/api/guests?id=${encodeURIComponent(guestId!)}`),
+            fetchApiJson<{ data: Reservation[] }>(
+              `/api/reservations?guest_id=${encodeURIComponent(guestId!)}`
+            ),
+          ]);
+          if (cancelled) return;
+          const g = gJson.data ?? null;
+          setGuest(g);
+          applyLoadedGuest(g);
+          setReservations(rJson.data);
+          if (reservationId) {
+            const row = rJson.data.find((x) => x.id === reservationId);
+            if (row && row.guest_id === guestId) {
+              const n = (row.internal_notes as string | null) ?? '';
+              if (!cancelled) {
+                setResNotesDraft(n);
+                setLastSavedResNotes(n);
+              }
+            } else if (!cancelled) {
+              setResNotesDraft('');
+              setLastSavedResNotes('');
+            }
+          }
+        } catch {
+          if (!cancelled) {
+            setGuest(null);
+            setReservations([]);
           }
         }
-      } else {
-        const [{ data: g }, { data: r }] = await Promise.all([
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      const [{ data: g }, { data: r }] = await Promise.all([
           supabase!.from('guests').select('*').eq('id', guestId).single(),
           supabase!.from('reservations').select('*').eq('guest_id', guestId).order('check_in', { ascending: false }),
         ]);
@@ -107,7 +126,6 @@ export function GuestPanel({ guestId, guestName, reservationId, onClose }: Guest
             setLastSavedResNotes('');
           }
         }
-      }
       if (cancelled) return;
       setNotesError(null);
       setResNotesError(null);
@@ -140,11 +158,12 @@ export function GuestPanel({ guestId, guestName, reservationId, onClose }: Guest
     setNotesSaving(true);
     try {
       if (IS_DEMO) {
-        const i = MOCK_GUESTS.findIndex((x) => x.id === guestId);
-        if (i < 0) throw new Error(t('guestPanel.demoGuestMissing'));
-        const updated: Guest = { ...MOCK_GUESTS[i], notes: notesDraft || null };
-        MOCK_GUESTS[i] = updated;
-        setGuest(updated);
+        const updated = await fetchApiJson<{ data: Guest }>('/api/guests', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: guestId, notes: notesDraft || null }),
+        });
+        setGuest(updated.data);
         setLastSavedNotes(notesDraft);
       } else {
         const { error } = await supabase!.from('guests').update({ notes: notesDraft || null }).eq('id', guestId);
@@ -174,13 +193,13 @@ export function GuestPanel({ guestId, guestName, reservationId, onClose }: Guest
     const stored = value.trim() || null;
     try {
       if (IS_DEMO) {
-        const i = MOCK_RESERVATIONS.findIndex((x) => x.id === reservationId);
-        if (i < 0) throw new Error(t('guestPanel.demoResMissing'));
-        if (MOCK_RESERVATIONS[i]!.guest_id !== guestId) {
-          throw new Error(t('guestPanel.resMismatch'));
-        }
-        const updated: Reservation = { ...MOCK_RESERVATIONS[i]!, internal_notes: stored };
-        MOCK_RESERVATIONS[i] = updated;
+        const json = await fetchApiJson<{ data: Reservation }>('/api/reservations', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: reservationId, internal_notes: stored }),
+        });
+        const updated = json.data;
+        if (updated.guest_id !== guestId) throw new Error(t('guestPanel.resMismatch'));
         setReservations((prev) => prev.map((x) => (x.id === reservationId ? updated : x)));
         if (!stored) {
           setResNotesDraft('');
@@ -223,11 +242,12 @@ export function GuestPanel({ guestId, guestName, reservationId, onClose }: Guest
       setResNotesSaving(true);
       try {
         if (IS_DEMO) {
-          const i = MOCK_RESERVATIONS.findIndex((x) => x.id === reservationId);
-          if (i < 0) throw new Error(t('guestPanel.demoResMissing'));
-          const updated: Reservation = { ...MOCK_RESERVATIONS[i]!, internal_notes: null };
-          MOCK_RESERVATIONS[i] = updated;
-          setReservations((prev) => prev.map((x) => (x.id === reservationId ? updated : x)));
+          const json = await fetchApiJson<{ data: Reservation }>('/api/reservations', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: reservationId, internal_notes: null }),
+          });
+          setReservations((prev) => prev.map((x) => (x.id === reservationId ? json.data : x)));
         } else {
           const { error } = await supabase!
             .from('reservations')

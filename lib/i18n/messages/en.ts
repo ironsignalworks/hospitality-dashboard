@@ -137,6 +137,7 @@ export const en: MessageTree = {
     deleteFailed: 'Could not delete the reservation.',
     required: 'Guest name, check-in and check-out are required.',
     checkoutAfter: 'Check-out must be after check-in.',
+    conflict: 'This room is already booked for those dates.',
     prevMonth: 'Previous month',
     nextMonth: 'Next month',
     todayOccupied: 'Today: {occupied}/{total} rooms occupied',

@@ -1,16 +1,9 @@
 import { NextResponse } from 'next/server';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
-import type { Channel, Guest, Reservation, ReservationStatus } from '@/lib/types';
+import { IS_DEMO } from '@/lib/demo';
+import { createDemoReservation } from '@/lib/services/demo-reservation-service';
+import { jsonNumberOrNull, stripDate } from '@/lib/demo-http';
 
-function stripTZ(d: unknown): string {
-  if (typeof d !== 'string') return '';
-  return d.split('T')[0] ?? d;
-}
-
-function makeId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
+/** @deprecated Prefer POST /api/reservations. Kept so existing demo callers keep working. */
 export async function POST(request: Request) {
   if (!IS_DEMO) {
     return NextResponse.json({ ok: false, error: 'Not in demo mode.' }, { status: 403 });
@@ -22,84 +15,32 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: 'Invalid JSON.' }, { status: 400 });
   }
+  const b = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
 
-  const b = (body && typeof body === 'object' ? (body as Record<string, unknown>) : {}) satisfies Record<
-    string,
-    unknown
-  >;
+  const result = createDemoReservation({
+    guest_name: String(b.guest_name ?? '').trim(),
+    guest_email: String(b.guest_email ?? '').trim() || null,
+    room: String(b.room ?? 'Quarto 1'),
+    check_in: stripDate(b.check_in),
+    check_out: stripDate(b.check_out),
+    channel: b.channel,
+    status: b.status,
+    total_eur: jsonNumberOrNull(b.total_eur),
+  });
 
-  const guestName = String(b.guest_name ?? '').trim();
-  const guestEmail = String(b.guest_email ?? '').trim() || null;
-  const room = String(b.room ?? 'Quarto 1');
-  const checkIn = stripTZ(b.check_in);
-  const checkOut = stripTZ(b.check_out);
-
-  const channel: Channel =
-    b.channel === 'airbnb' || b.channel === 'booking' || b.channel === 'direct' ? b.channel : 'direct';
-  const status: ReservationStatus =
-    b.status === 'confirmed' ||
-    b.status === 'pending' ||
-    b.status === 'cancelled' ||
-    b.status === 'checked_in' ||
-    b.status === 'checked_out'
-      ? b.status
-      : 'confirmed';
-
-  const totalEurRaw = b.total_eur;
-  const totalEur =
-    typeof totalEurRaw === 'number'
-      ? totalEurRaw
-      : typeof totalEurRaw === 'string' && totalEurRaw.trim()
-        ? Number.parseFloat(totalEurRaw)
-        : null;
-
-  if (!guestName || !checkIn || !checkOut) {
+  if (result.conflicts) {
     return NextResponse.json(
-      { ok: false, error: 'Guest name, check-in and check-out are required.' },
-      { status: 400 }
+      { ok: false, error: result.error, conflicts: result.conflicts },
+      { status: 409 }
     );
   }
-  if (checkIn >= checkOut) {
-    return NextResponse.json(
-      { ok: false, error: 'Check-out must be after check-in.' },
-      { status: 400 }
-    );
+  if (result.error || !result.guest || !result.reservation) {
+    return NextResponse.json({ ok: false, error: result.error ?? 'Could not save.' }, { status: 400 });
   }
-
-  const nowIso = new Date().toISOString();
-  const guestId = makeId('g-demo');
-  const reservationId = makeId('r-demo');
-
-  const guest: Guest = {
-    id: guestId,
-    name: guestName,
-    email: guestEmail,
-    phone: null,
-    nationality: null,
-    notes: '',
-    created_at: nowIso,
-  };
-  MOCK_GUESTS.push(guest);
-
-  const reservation: Reservation = {
-    id: reservationId,
-    guest_id: guestId,
-    room,
-    check_in: checkIn,
-    check_out: checkOut,
-    channel,
-    status,
-    total_eur: Number.isFinite(totalEur as number) ? totalEur : null,
-    external_id: null,
-    internal_notes: null,
-    created_at: nowIso,
-    guest,
-  };
-  MOCK_RESERVATIONS.push(reservation);
 
   return NextResponse.json({
     ok: true,
-    guest: { id: guestId, name: guestName, email: guestEmail },
-    reservation: { id: reservationId },
+    guest: { id: result.guest.id, name: result.guest.name, email: result.guest.email },
+    reservation: { id: result.reservation.id },
   });
 }
