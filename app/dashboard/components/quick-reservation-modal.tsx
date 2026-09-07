@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase';
 import type { Channel, Guest, Reservation, ReservationStatus } from '@/lib/types';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { useT, tChannel, tStatus, displayRoomLabel } from '@/lib/i18n';
-import { fetchApiJson } from '@/lib/api-client';
+import { ApiError, fetchApiJson } from '@/lib/api-client';
 
 const INPUT = 'w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] focus:border-transparent bg-white';
 
@@ -157,7 +157,9 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       setSaving(false);
       const raw = e instanceof Error ? e.message : t('reservations.saveFailed');
       const msg =
-        raw.toLowerCase().includes('conflict') || raw.toLowerCase().includes('double booking')
+        (e instanceof ApiError && e.code === 'CONFLICT') ||
+        raw.toLowerCase().includes('conflict') ||
+        raw.toLowerCase().includes('double booking')
           ? t('reservations.conflict')
           : raw;
       setFormError(msg);

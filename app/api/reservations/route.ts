@@ -1,6 +1,12 @@
-import { NextResponse } from 'next/server';
 import { mockStorage } from '@/lib/mock-storage';
-import { guardDemoApi, jsonNumberOrNull, readJsonObject, stripDate } from '@/lib/demo-http';
+import {
+  demoError,
+  demoJson,
+  guardDemoApi,
+  jsonNumberOrNull,
+  readJsonObject,
+  stripDate,
+} from '@/lib/demo-http';
 import {
   createDemoReservation,
   updateDemoReservation,
@@ -16,7 +22,7 @@ export async function GET(request: Request) {
     status: searchParams.get('status') ?? undefined,
     guest_id: searchParams.get('guest_id') ?? undefined,
   });
-  return NextResponse.json({ data: reservations });
+  return demoJson(request, { data: reservations }, { cache: true });
 }
 
 export async function POST(request: Request) {
@@ -24,7 +30,7 @@ export async function POST(request: Request) {
   if (blocked) return blocked;
 
   const body = await readJsonObject(request);
-  if (body instanceof NextResponse) return body;
+  if (body instanceof Response) return body;
 
   const result = createDemoReservation({
     guest_id: typeof body.guest_id === 'string' ? body.guest_id : null,
@@ -41,16 +47,16 @@ export async function POST(request: Request) {
   });
 
   if (result.conflicts) {
-    return NextResponse.json(
-      { error: result.error, conflicts: result.conflicts },
-      { status: 409 }
-    );
+    return demoError(request, result.error ?? 'Conflict', 'CONFLICT', 409, {
+      conflicts: result.conflicts,
+    });
   }
   if (result.error || !result.reservation || !result.guest) {
-    return NextResponse.json({ error: result.error ?? 'Could not save.' }, { status: 400 });
+    return demoError(request, result.error ?? 'Could not save.', 'VALIDATION_ERROR', 400);
   }
 
-  return NextResponse.json(
+  return demoJson(
+    request,
     {
       ok: true,
       data: result.reservation,
@@ -66,10 +72,10 @@ export async function PATCH(request: Request) {
   if (blocked) return blocked;
 
   const body = await readJsonObject(request);
-  if (body instanceof NextResponse) return body;
+  if (body instanceof Response) return body;
 
   const id = typeof body.id === 'string' ? body.id : '';
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
 
   const result = updateDemoReservation(id, {
     guest_name: typeof body.guest_name === 'string' ? body.guest_name : undefined,
@@ -89,16 +95,20 @@ export async function PATCH(request: Request) {
   });
 
   if (result.conflicts) {
-    return NextResponse.json(
-      { error: result.error, conflicts: result.conflicts },
-      { status: 409 }
-    );
+    return demoError(request, result.error ?? 'Conflict', 'CONFLICT', 409, {
+      conflicts: result.conflicts,
+    });
   }
   if (result.error || !result.reservation) {
-    const status = result.error === 'Reservation not found' ? 404 : 400;
-    return NextResponse.json({ error: result.error ?? 'Could not save.' }, { status });
+    const notFound = result.error === 'Reservation not found';
+    return demoError(
+      request,
+      result.error ?? 'Could not save.',
+      notFound ? 'NOT_FOUND' : 'VALIDATION_ERROR',
+      notFound ? 404 : 400
+    );
   }
-  return NextResponse.json({ ok: true, data: result.reservation });
+  return demoJson(request, { ok: true, data: result.reservation });
 }
 
 export async function DELETE(request: Request) {
@@ -109,11 +119,11 @@ export async function DELETE(request: Request) {
   let id = searchParams.get('id') ?? '';
   if (!id) {
     const body = await readJsonObject(request);
-    if (!(body instanceof NextResponse) && typeof body.id === 'string') id = body.id;
+    if (!(body instanceof Response) && typeof body.id === 'string') id = body.id;
   }
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
 
   const ok = mockStorage.deleteReservation(id);
-  if (!ok) return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  if (!ok) return demoError(request, 'Reservation not found', 'NOT_FOUND', 404);
+  return demoJson(request, { ok: true });
 }

@@ -20,6 +20,9 @@ import {
 import type { Message } from '@/lib/types';
 import { useLocale, localeToBcp47, type Locale } from '@/lib/i18n';
 import { fetchApiJson } from '@/lib/api-client';
+import { useMessagesApi } from '@/lib/hooks/use-demo-api';
+import { withOptimistic } from '@/lib/optimistic';
+import { ListSkeleton } from '../components/list-skeleton';
 
 type MessageWithRelations = Message & {
   guest: { name: string; id: string } | null;
@@ -75,9 +78,14 @@ function formatTime(iso: string, locale: Locale) {
 export default function MessagesPage() {
   const { locale, t } = useLocale();
   const supabase = IS_DEMO ? null : createClient();
-  const [messages, setMessages] = useState<MessageWithRelations[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const demoApi = useMessagesApi(IS_DEMO);
+  const [prodMessages, setProdMessages] = useState<MessageWithRelations[]>([]);
+  const [prodLoading, setProdLoading] = useState(!IS_DEMO);
+  const [prodError, setProdError] = useState<string | null>(null);
+  const messages = IS_DEMO ? (demoApi.data as MessageWithRelations[]) : prodMessages;
+  const setMessages = IS_DEMO ? demoApi.setData : setProdMessages;
+  const loading = IS_DEMO ? demoApi.loading : prodLoading;
+  const fetchError = IS_DEMO ? (demoApi.error ? t('messages.loadError') : null) : prodError;
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -93,24 +101,23 @@ export default function MessagesPage() {
   const fetchMessages = useCallback(async () => {
     if (IS_DEMO) {
       try {
-        const json = await fetchApiJson<{ data: MessageWithRelations[] }>('/api/messages');
-        setMessages(json.data);
+        await demoApi.refetch();
       } catch {
-        setFetchError(t('messages.loadError'));
+        /* hook stores error */
       }
-      setLoading(false);
       return;
     }
     const { data, error } = await supabase!
       .from('messages')
       .select('*, guest:guests(id,name), reservation:reservations(room,check_in,check_out)')
       .order('created_at', { ascending: true });
-    if (error) setFetchError(t('messages.loadError'));
-    setMessages((data as MessageWithRelations[]) ?? []);
-    setLoading(false);
-  }, [supabase, t]);
+    if (error) setProdError(t('messages.loadError'));
+    setProdMessages((data as MessageWithRelations[]) ?? []);
+    setProdLoading(false);
+  }, [demoApi.refetch, supabase, t]);
 
   useEffect(() => {
+    if (IS_DEMO) return;
     fetchMessages();
 
     if (!IS_DEMO) {
@@ -137,16 +144,24 @@ export default function MessagesPage() {
 
   async function markHandled(msgIds: string[]) {
     if (IS_DEMO) {
-      await Promise.all(
-        msgIds.map((id) =>
-          fetchApiJson('/api/messages', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, handled: true }),
-          })
-        )
+      const prev = messages;
+      await withOptimistic(
+        () =>
+          setMessages(
+            prev.map((m) => (msgIds.includes(m.id) ? { ...m, handled: true } : m))
+          ),
+        () => setMessages(prev),
+        () =>
+          Promise.all(
+            msgIds.map((id) =>
+              fetchApiJson('/api/messages', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, handled: true }),
+              })
+            )
+          )
       );
-      await fetchMessages();
       return;
     }
     for (const id of msgIds) {
@@ -307,7 +322,7 @@ export default function MessagesPage() {
 
         <div className="flex-1 overflow-y-auto divide-y divide-[#F0EDE6]">
           {loading ? (
-            <div className="p-6 text-center text-sm text-[#888]">{t('common.loading')}</div>
+            <ListSkeleton rows={6} />
           ) : fetchError ? (
             <div className="p-6 text-center text-sm text-red-500">{fetchError}</div>
           ) : conversations.length === 0 ? (

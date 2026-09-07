@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import {
@@ -18,6 +18,8 @@ import type { Guest, GuestAlert, Reservation } from '@/lib/types';
 import { useLocale, tChannel, displayRoomLabel } from '@/lib/i18n';
 import { formatDate, formatDateTime, stripTZ } from '@/lib/dashboard-date-helpers';
 import { fetchApiJson } from '@/lib/api-client';
+import { useGuestsApi, useReservationsApi } from '@/lib/hooks/use-demo-api';
+import { ListSkeleton } from '../components/list-skeleton';
 
 const DATE_NUM: Intl.DateTimeFormatOptions = {
   day: '2-digit',
@@ -48,9 +50,11 @@ type GuestWithStats = Guest & {
 export default function GuestsPage() {
   const { locale, t } = useLocale();
   const supabase = IS_DEMO ? null : createClient();
-  const [guests, setGuests] = useState<GuestWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const demoGuests = useGuestsApi(IS_DEMO);
+  const demoReservations = useReservationsApi(IS_DEMO);
+  const [prodGuests, setProdGuests] = useState<GuestWithStats[]>([]);
+  const [prodLoading, setProdLoading] = useState(!IS_DEMO);
+  const [prodError, setProdError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<GuestWithStats | null>(null);
   const [guestReservations, setGuestReservations] = useState<Reservation[]>([]);
@@ -75,28 +79,11 @@ export default function GuestsPage() {
 
   const fetchGuests = useCallback(async () => {
     if (IS_DEMO) {
-      try {
-        const [gJson, rJson] = await Promise.all([
-          fetchApiJson<{ data: Guest[] }>('/api/guests'),
-          fetchApiJson<{ data: Reservation[] }>('/api/reservations'),
-        ]);
-        const withStats: GuestWithStats[] = gJson.data.map((g) => {
-          const gRes = rJson.data.filter((r) => r.guest_id === g.id);
-          const last = gRes.reduce<string | null>(
-            (acc, r) => (!acc || r.check_in > acc ? r.check_in : acc),
-            null
-          );
-          return { ...g, reservation_count: gRes.length, last_stay: last };
-        });
-        setGuests(withStats);
-      } catch {
-        setFetchError(t('guests.loadError'));
-      }
-      setLoading(false);
+      await Promise.all([demoGuests.refetch(), demoReservations.refetch()]).catch(() => {});
       return;
     }
 
-    setLoading(true);
+    setProdLoading(true);
     const { data: reservations, error: resError } = await supabase!
       .from('reservations')
       .select('guest_id, check_in, check_out')
@@ -108,11 +95,11 @@ export default function GuestsPage() {
       .order('name', { ascending: true });
 
     if (resError || guestError) {
-      setFetchError(t('guests.loadError'));
-      setLoading(false);
+      setProdError(t('guests.loadError'));
+      setProdLoading(false);
       return;
     }
-    if (!rawGuests) { setLoading(false); return; }
+    if (!rawGuests) { setProdLoading(false); return; }
 
     const statsMap: Record<string, { count: number; last: string | null }> = {};
     for (const r of reservations ?? []) {
@@ -131,11 +118,33 @@ export default function GuestsPage() {
       last_stay: statsMap[g.id]?.last ?? null,
     }));
 
-    setGuests(withStats);
-    setLoading(false);
-  }, [supabase, t]);
+    setProdGuests(withStats);
+    setProdLoading(false);
+  }, [demoGuests.refetch, demoReservations.refetch, supabase, t]);
 
-  useEffect(() => { fetchGuests(); }, [fetchGuests]);
+  useEffect(() => {
+    if (IS_DEMO) return;
+    fetchGuests();
+  }, [fetchGuests]);
+
+  const guests: GuestWithStats[] = useMemo(() => {
+    if (!IS_DEMO) return prodGuests;
+    return demoGuests.data.map((g) => {
+      const gRes = demoReservations.data.filter((r) => r.guest_id === g.id);
+      const last = gRes.reduce<string | null>(
+        (acc, r) => (!acc || r.check_in > acc ? r.check_in : acc),
+        null
+      );
+      return { ...g, reservation_count: gRes.length, last_stay: last };
+    });
+  }, [demoGuests.data, demoReservations.data, prodGuests]);
+
+  const loading = IS_DEMO ? demoGuests.loading || demoReservations.loading : prodLoading;
+  const fetchError = IS_DEMO
+    ? demoGuests.error || demoReservations.error
+      ? t('guests.loadError')
+      : null
+    : prodError;
 
   async function loadGuestAlerts(guestId: string) {
     if (IS_DEMO) return;
@@ -329,7 +338,7 @@ export default function GuestsPage() {
 
         <div className="flex-1 overflow-y-auto divide-y divide-[#F0EDE6]">
           {loading ? (
-            <div className="p-6 text-center text-[#888] text-sm">{t('common.loading')}</div>
+            <ListSkeleton rows={6} />
           ) : fetchError ? (
             <div className="p-6 text-center text-sm text-red-500">{fetchError}</div>
           ) : filtered.length === 0 ? (

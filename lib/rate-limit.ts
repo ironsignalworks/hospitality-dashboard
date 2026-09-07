@@ -1,7 +1,7 @@
 export class RateLimiter {
   private requests = new Map<string, number[]>();
 
-  check(key: string, limit = 40, windowMs = 60_000): boolean {
+  check(key: string, limit = 10, windowMs = 60_000): boolean {
     const now = Date.now();
     const recent = (this.requests.get(key) ?? []).filter((t) => now - t < windowMs);
     if (recent.length >= limit) {

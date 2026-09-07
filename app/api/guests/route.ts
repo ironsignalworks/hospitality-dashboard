@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
 import { mockStorage } from '@/lib/mock-storage';
-import { guardDemoApi, readJsonObject } from '@/lib/demo-http';
+import { demoError, demoJson, guardDemoApi, readJsonObject } from '@/lib/demo-http';
 
 export async function GET(request: Request) {
   const blocked = await guardDemoApi(request);
@@ -10,11 +9,11 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   if (id) {
     const guest = mockStorage.getGuest(id);
-    if (!guest) return NextResponse.json({ error: 'Guest not found' }, { status: 404 });
-    return NextResponse.json({ data: guest });
+    if (!guest) return demoError(request, 'Guest not found', 'NOT_FOUND', 404);
+    return demoJson(request, { data: guest }, { cache: true });
   }
   const guests = mockStorage.getGuests(searchParams.get('search') ?? undefined);
-  return NextResponse.json({ data: guests });
+  return demoJson(request, { data: guests }, { cache: true });
 }
 
 export async function POST(request: Request) {
@@ -22,10 +21,10 @@ export async function POST(request: Request) {
   if (blocked) return blocked;
 
   const body = await readJsonObject(request);
-  if (body instanceof NextResponse) return body;
+  if (body instanceof Response) return body;
 
   const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  if (!name) return demoError(request, 'Name is required', 'VALIDATION_ERROR', 400);
 
   const guest = mockStorage.createGuest({
     name,
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
     nationality: typeof body.nationality === 'string' ? body.nationality.trim() || null : null,
     notes: typeof body.notes === 'string' ? body.notes : '',
   });
-  return NextResponse.json({ ok: true, data: guest }, { status: 201 });
+  return demoJson(request, { ok: true, data: guest }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -42,10 +41,10 @@ export async function PATCH(request: Request) {
   if (blocked) return blocked;
 
   const body = await readJsonObject(request);
-  if (body instanceof NextResponse) return body;
+  if (body instanceof Response) return body;
 
   const id = typeof body.id === 'string' ? body.id : '';
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
 
   const updated = mockStorage.updateGuest(id, {
     ...(typeof body.name === 'string' ? { name: body.name.trim() } : {}),
@@ -64,6 +63,6 @@ export async function PATCH(request: Request) {
         ? { notes: body.notes }
         : {}),
   });
-  if (!updated) return NextResponse.json({ error: 'Guest not found' }, { status: 404 });
-  return NextResponse.json({ ok: true, data: updated });
+  if (!updated) return demoError(request, 'Guest not found', 'NOT_FOUND', 404);
+  return demoJson(request, { ok: true, data: updated });
 }

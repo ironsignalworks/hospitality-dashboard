@@ -1,5 +1,5 @@
 import { IS_DEMO } from '@/lib/demo';
-import { mockStorage } from '@/lib/mock-storage';
+import { getDemoTodaySnapshot } from '@/lib/services/demo-today-service';
 import Link from 'next/link';
 import { BarChart2, MessageSquare, TrendingUp, FileEdit, Users } from 'lucide-react';
 import { AppSettingsProvider } from './components/app-settings-provider';
@@ -35,12 +35,9 @@ export default async function DashboardToday() {
   let appSettings = DEFAULT_SETTINGS;
 
   if (IS_DEMO) {
-    reservations = mockStorage
-      .getReservations()
-      .filter((r) => r.check_in <= in7 && r.check_out >= today && r.status !== 'cancelled');
-    unreadCount = mockStorage
-      .getMessages()
-      .filter((m) => !m.handled && m.role === 'guest').length;
+    const snap = getDemoTodaySnapshot(today, in7);
+    reservations = snap.reservations;
+    unreadCount = snap.unreadCount;
   } else {
     const { createClient } = await import('@/lib/supabase/server');
     const supabase = await createClient();

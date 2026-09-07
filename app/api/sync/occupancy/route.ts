@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
 import { mockStorage } from '@/lib/mock-storage';
-import { guardDemoApi } from '@/lib/demo-http';
+import { demoJson, guardDemoApi } from '@/lib/demo-http';
 import type { Channel } from '@/lib/types';
 import {
   DEFAULT_ROOM_COUNT,
@@ -39,9 +38,13 @@ export async function GET(request: Request) {
   });
   const months = buildMonthlyStats(filtered, from, to, DEFAULT_ROOM_COUNT);
 
-  return NextResponse.json({
-    data: mockStorage.getReservations(),
-    filtered,
-    months,
-  });
+  return demoJson(
+    request,
+    {
+      data: mockStorage.getReservations(),
+      filtered,
+      months,
+    },
+    { cache: true }
+  );
 }

@@ -1,0 +1,31 @@
+## Sixt-Ready Features Checklist
+
+### Backend API
+- [x] MockStorage singleton (persistent across requests)
+- [x] GET /api/reservations (list with filters)
+- [x] POST /api/reservations (create with conflict check)
+- [x] PATCH /api/reservations/:id (update status, notes)
+- [x] DELETE /api/reservations/:id (cancel)
+- [x] GET /api/guests (list, search)
+- [x] POST /api/guests (create)
+- [x] PATCH /api/guests/:id (update)
+- [x] GET /api/messages (list by reservation)
+- [x] POST /api/messages (send)
+- [x] PATCH /api/messages/:id (mark handled)
+
+### Realism
+- [x] Conflict detection (double booking protection)
+- [x] Webhook simulation for Airbnb/Booking
+- [x] Network delays (100-500ms)
+- [x] Occasional errors (1 in 50 requests)
+- [x] Rate limiting (10 req/min per IP)
+- [x] Structured error codes
+- [x] Request ID tracking (X-Request-ID header)
+- [x] Cache headers on GET endpoints
+
+### Frontend
+- [x] Replace direct mock calls with API hooks
+- [x] Loading states (Suspense/skeleton)
+- [x] Error boundaries
+- [x] Retry on network error
+- [x] Optimistic updates for mutations

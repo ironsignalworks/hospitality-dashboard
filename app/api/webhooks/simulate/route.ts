@@ -1,15 +1,14 @@
-import { NextResponse } from 'next/server';
 import { mockStorage } from '@/lib/mock-storage';
 import { detectConflict } from '@/lib/domain/conflicts';
 import { createDemoReservation } from '@/lib/services/demo-reservation-service';
-import { guardDemoApi, readJsonObject, stripDate } from '@/lib/demo-http';
+import { demoError, demoJson, guardDemoApi, readJsonObject, stripDate } from '@/lib/demo-http';
 
 export async function POST(request: Request) {
   const blocked = await guardDemoApi(request);
   if (blocked) return blocked;
 
   const body = await readJsonObject(request);
-  if (body instanceof NextResponse) return body;
+  if (body instanceof Response) return body;
 
   const action = typeof body.action === 'string' ? body.action : '';
   const data =
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
     const check_out = stripDate(data.check_out);
     const conflicts = detectConflict({ room, check_in, check_out }, mockStorage.getReservations());
     if (conflicts.length > 0) {
-      return NextResponse.json({
+      return demoError(request, 'Double booking conflict detected', 'CONFLICT', 409, {
         status: 'conflict',
         conflicting_reservations: conflicts,
       });
@@ -40,10 +39,10 @@ export async function POST(request: Request) {
       external_id: typeof data.external_id === 'string' ? data.external_id : null,
     });
     if (result.error || !result.reservation) {
-      return NextResponse.json({ error: result.error ?? 'Could not create' }, { status: 400 });
+      return demoError(request, result.error ?? 'Could not create', 'VALIDATION_ERROR', 400);
     }
-    return NextResponse.json({ ok: true, status: 'created', data: result.reservation });
+    return demoJson(request, { ok: true, status: 'created', data: result.reservation });
   }
 
-  return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  return demoError(request, 'Unknown action', 'UNKNOWN_ACTION', 400);
 }

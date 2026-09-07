@@ -57,6 +57,12 @@ export const en: MessageTree = {
     networkError: 'Network error.',
     saveError: 'Could not save.',
     loadError: 'Could not load data.',
+    retry: 'Try again',
+  },
+  error: {
+    pageTitle: 'Something went wrong',
+    pageBody: 'This screen failed to load. You can try again.',
+    digest: 'Reference: {digest}',
   },
   channel: {
     airbnb: 'Airbnb',

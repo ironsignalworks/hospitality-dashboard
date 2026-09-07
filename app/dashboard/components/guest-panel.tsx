@@ -5,6 +5,7 @@ import { IS_DEMO } from '@/lib/demo';
 import { fetchApiJson } from '@/lib/api-client';
 import { createClient } from '@/lib/supabase';
 import { X, Mail, Phone, Loader2 } from 'lucide-react';
+import { ListSkeleton } from './list-skeleton';
 import { ChannelIcon } from './channel-icon';
 import type { Guest, Reservation } from '@/lib/types';
 import { useLocale, tChannel, displayRoomLabel } from '@/lib/i18n';
@@ -308,9 +309,7 @@ export function GuestPanel({ guestId, guestName, reservationId, onClose }: Guest
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-[#DAA520]" aria-hidden />
-            </div>
+            <ListSkeleton rows={5} />
           ) : (
             <>
               {guest && (

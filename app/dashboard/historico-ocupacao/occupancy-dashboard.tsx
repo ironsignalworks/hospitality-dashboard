@@ -24,7 +24,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { IS_DEMO } from '@/lib/demo';
-import { fetchApiJson } from '@/lib/api-client';
+import { useReservationsApi } from '@/lib/hooks/use-demo-api';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { createClient } from '@/lib/supabase';
 import type { Reservation, Channel } from '@/lib/types';
@@ -191,9 +191,13 @@ export function OccupancyDashboard() {
   const [includeCancelled, setIncludeCancelled] = useState(false);
   const [stayScope, setStayScope] = useState<StayScope>('all');
   const [roomCount, setRoomCount] = useState(DEFAULT_ROOM_COUNT);
-  const [list, setList] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const demoApi = useReservationsApi(IS_DEMO);
+  const [prodList, setProdList] = useState<Reservation[]>([]);
+  const [prodLoading, setProdLoading] = useState(!IS_DEMO);
+  const [prodErr, setProdErr] = useState<string | null>(null);
+  const list = IS_DEMO ? demoApi.data : prodList;
+  const loading = IS_DEMO ? demoApi.loading : prodLoading;
+  const err = IS_DEMO ? (demoApi.error ? t('occupancy.loadError') : null) : prodErr;
 
   const [todayStr, setTodayStr] = useState(() => toIso(new Date()));
   useEffect(() => {
@@ -201,17 +205,12 @@ export function OccupancyDashboard() {
   }, []);
 
   useEffect(() => {
+    if (IS_DEMO) return;
     let c = true;
     async function load() {
-      setLoading(true);
-      setErr(null);
+      setProdLoading(true);
+      setProdErr(null);
       try {
-        if (IS_DEMO) {
-          const json = await fetchApiJson<{ data: Reservation[] }>('/api/reservations');
-          if (!c) return;
-          setList(json.data);
-          return;
-        }
         const supabase = createClient();
         const { data, error } = await supabase
           .from('reservations')
@@ -219,11 +218,11 @@ export function OccupancyDashboard() {
           .order('check_in', { ascending: true });
         if (error) throw new Error(error.message);
         if (!c) return;
-        setList((data as Reservation[]) ?? []);
+        setProdList((data as Reservation[]) ?? []);
       } catch (e) {
-        if (c) setErr(e instanceof Error ? e.message : t('occupancy.loadError'));
+        if (c) setProdErr(e instanceof Error ? e.message : t('occupancy.loadError'));
       } finally {
-        if (c) setLoading(false);
+        if (c) setProdLoading(false);
       }
     }
     void load();

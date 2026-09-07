@@ -57,6 +57,12 @@ export const pt: MessageTree = {
     networkError: 'Erro de rede.',
     saveError: 'Não foi possível guardar.',
     loadError: 'Não foi possível carregar os dados.',
+    retry: 'Tentar novamente',
+  },
+  error: {
+    pageTitle: 'Algo correu mal',
+    pageBody: 'Este ecrã não carregou. Pode tentar novamente.',
+    digest: 'Referência: {digest}',
   },
   channel: {
     airbnb: 'Airbnb',

@@ -23,7 +23,10 @@ import { useSettings } from '@/lib/hooks/use-settings';
 import { ROOMS } from '@/lib/config/rooms';
 import { useLocale, tChannel, tStatus, displayRoomLabel, type TFunction, type Locale } from '@/lib/i18n';
 import { formatDate, formatMonthYear, weekdayHeaders, stripTZ } from '@/lib/dashboard-date-helpers';
-import { fetchApiJson } from '@/lib/api-client';
+import { ApiError, fetchApiJson } from '@/lib/api-client';
+import { useReservationsApi } from '@/lib/hooks/use-demo-api';
+import { withOptimistic } from '@/lib/optimistic';
+import { ListSkeleton } from '../components/list-skeleton';
 
 const CHANNEL_COLOR: Record<string, string> = {
   airbnb: 'bg-[#FF5A5F] text-white',
@@ -104,8 +107,12 @@ export default function ReservationsPage() {
   const { locale, t } = useLocale();
   const supabase = IS_DEMO ? null : createClient();
   const settings = useSettings();
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const demoApi = useReservationsApi(IS_DEMO);
+  const [prodReservations, setProdReservations] = useState<Reservation[]>([]);
+  const [prodLoading, setProdLoading] = useState(!IS_DEMO);
+  const reservations = IS_DEMO ? demoApi.data : prodReservations;
+  const setReservations = IS_DEMO ? demoApi.setData : setProdReservations;
+  const loading = IS_DEMO ? demoApi.loading : prodLoading;
   const [syncing, setSyncing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Reservation | null>(null);
@@ -138,25 +145,26 @@ export default function ReservationsPage() {
   const fetchReservations = useCallback(async () => {
     if (IS_DEMO) {
       try {
-        const json = await fetchApiJson<{ data: Reservation[] }>('/api/reservations');
-        setReservations(json.data);
+        await demoApi.refetch();
       } catch {
         showNotice('error', t('reservations.loadError'));
       }
-      setLoading(false);
       return;
     }
-    setLoading(true);
+    setProdLoading(true);
     const { data, error } = await supabase!
       .from('reservations')
       .select('*, guest:guests(*)')
       .order('check_in', { ascending: true });
     if (error) showNotice('error', t('reservations.loadError'));
-    setReservations(data ?? []);
-    setLoading(false);
-  }, [supabase, t]);
+    setProdReservations(data ?? []);
+    setProdLoading(false);
+  }, [demoApi.refetch, supabase, t]);
 
-  useEffect(() => { fetchReservations(); }, [fetchReservations]);
+  useEffect(() => {
+    if (IS_DEMO) return;
+    fetchReservations();
+  }, [fetchReservations]);
 
   useEffect(() => {
     if (!selectedDay) return;
@@ -317,7 +325,9 @@ export default function ReservationsPage() {
       setSaving(false);
       const msg = e instanceof Error ? e.message : t('reservations.saveFailed');
       const shown =
-        msg.toLowerCase().includes('conflict') || msg.toLowerCase().includes('double booking')
+        (e instanceof ApiError && e.code === 'CONFLICT') ||
+        msg.toLowerCase().includes('conflict') ||
+        msg.toLowerCase().includes('double booking')
           ? t('reservations.conflict')
           : msg;
       setFormError(shown);
@@ -329,8 +339,13 @@ export default function ReservationsPage() {
     if (!confirm(t('reservations.confirmDelete'))) return;
     try {
       if (IS_DEMO) {
-        await fetchApiJson(`/api/reservations?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-        await fetchReservations();
+        const prev = reservations;
+        await withOptimistic(
+          () => setReservations(prev.filter((r) => r.id !== id)),
+          () => setReservations(prev),
+          () =>
+            fetchApiJson(`/api/reservations?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+        );
         showNotice('success', t('reservations.deleted'));
         return;
       }
@@ -770,7 +785,7 @@ export default function ReservationsPage() {
             className="p-3 sm:p-4"
           >
             {loading ? (
-              <p className="text-sm text-[#888]">{t('common.loading')}</p>
+              <ListSkeleton rows={4} />
             ) : (
               <div className="max-h-[min(28rem,50vh)] overflow-y-auto -mx-0.5 px-0.5">
                 {upcoming.length === 0 ? (
@@ -857,7 +872,7 @@ export default function ReservationsPage() {
               {t('reservations.historyHint')}
             </p>
             {loading ? (
-              <p className="text-sm text-[#888]">{t('common.loading')}</p>
+              <ListSkeleton rows={4} />
             ) : pastReservations.length === 0 ? (
               <p className="text-sm text-[#888]">{t('reservations.historyEmpty')}</p>
             ) : (

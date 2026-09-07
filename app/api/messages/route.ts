@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { IS_DEMO } from '@/lib/demo';
 import { mockStorage } from '@/lib/mock-storage';
-import { guardDemoApi, readJsonObject } from '@/lib/demo-http';
+import { demoError, demoJson, guardDemoApi, readJsonObject } from '@/lib/demo-http';
 import type { MessageRole } from '@/lib/types';
 
 export async function GET(request: Request) {
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       reservation_id: searchParams.get('reservation_id') ?? undefined,
       guest_id: searchParams.get('guest_id') ?? undefined,
     });
-    return NextResponse.json({ data: messages });
+    return demoJson(request, { data: messages }, { cache: true });
   }
 
   const supabase = await createClient();
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const blocked = await guardDemoApi(request);
     if (blocked) return blocked;
     const body = await readJsonObject(request);
-    if (body instanceof NextResponse) return body;
+    if (body instanceof Response) return body;
 
     const guestMessage = typeof body.guestMessage === 'string' ? body.guestMessage.trim() : '';
     const ownerBody = typeof body.body === 'string' ? body.body.trim() : '';
@@ -72,11 +72,11 @@ export async function POST(request: Request) {
         handled: false,
         scheduled_at: null,
       });
-      return NextResponse.json({ ok: true, messageId: saved.id, aiDraft: draft, data: saved });
+      return demoJson(request, { ok: true, messageId: saved.id, aiDraft: draft, data: saved });
     }
 
     if (!ownerBody) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return demoError(request, 'Message is required', 'VALIDATION_ERROR', 400);
     }
     const role: MessageRole = body.role === 'ai' || body.role === 'guest' ? body.role : 'owner';
     const scheduled_at = typeof body.scheduled_at === 'string' ? body.scheduled_at : null;
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       handled: role !== 'guest',
       scheduled_at,
     });
-    return NextResponse.json({ ok: true, data: saved });
+    return demoJson(request, { ok: true, data: saved });
   }
 
   let guestMessage: string, reservationId: string | undefined, guestId: string | undefined;
@@ -114,13 +114,13 @@ export async function PATCH(request: Request) {
     const blocked = await guardDemoApi(request);
     if (blocked) return blocked;
     const body = await readJsonObject(request);
-    if (body instanceof NextResponse) return body;
+    if (body instanceof Response) return body;
     const id = typeof body.id === 'string' ? body.id : '';
-    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
     const handled = typeof body.handled === 'boolean' ? body.handled : undefined;
     const updated = mockStorage.updateMessage(id, handled !== undefined ? { handled } : {});
-    if (!updated) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-    return NextResponse.json({ ok: true, data: updated });
+    if (!updated) return demoError(request, 'Message not found', 'NOT_FOUND', 404);
+    return demoJson(request, { ok: true, data: updated });
   }
 
   const supabase = await createClient();
@@ -150,8 +150,8 @@ export async function DELETE(request: Request) {
   const blocked = await guardDemoApi(request);
   if (blocked) return blocked;
   const id = new URL(request.url).searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
   const ok = mockStorage.deleteMessage(id);
-  if (!ok) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-  return NextResponse.json({ ok: true });
+  if (!ok) return demoError(request, 'Message not found', 'NOT_FOUND', 404);
+  return demoJson(request, { ok: true });
 }
