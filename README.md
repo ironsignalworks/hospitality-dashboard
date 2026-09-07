@@ -2,9 +2,9 @@
 
 Ops panel for a small property: reservations, guests, messaging, concierge copy, and occupancy — in one place instead of Airbnb + Booking + WhatsApp + a spreadsheet.
 
-**UI is English by default**, with an EN|PT toggle in the sidebar. Portuguese (pt-PT) is kept as a first-class locale. Built around a real 3-room operation, then white-labeled so the name is an env var. Unset `NEXT_PUBLIC_SUPABASE_URL` and the app runs on mocks — no backend required.
+**UI is English by default**, with an EN|PT toggle in the sidebar. Portuguese (pt-PT) is kept as a first-class locale. Built around a real 3-room operation, then white-labeled so the name is an env var. Unset `NEXT_PUBLIC_SUPABASE_URL` and the app runs a **demo API** on in-memory storage — no backend required.
 
-**[Live demo](https://hospitality-dashboard-theta.vercel.app/)** · [Architecture](#architecture) · [What is not done](#what-is-not-done)
+**[Live demo](https://hospitality-dashboard-theta.vercel.app/)** · [Architecture](#architecture) · [Tests](#scripts)
 
 ## Live demo
 
@@ -56,7 +56,7 @@ flowchart LR
   Svc --> Domain["lib/domain"]
   Domain --> ICal["iCal + HMAC webhooks"]
   Svc --> SB[("Supabase + RLS")]
-  Demo["lib/demo mocks"] -.-> UI
+  Demo["mockStorage"] --> API
 ```
 
 Two runtimes, same UI:
@@ -64,9 +64,14 @@ Two runtimes, same UI:
 | | Demo | Production |
 | --- | --- | --- |
 | When | No real `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL + anon key |
-| Data | Mocks in `lib/demo.ts` | Postgres + RLS |
+| Data | Seed in `lib/demo.ts`, live store in `lib/mock-storage.ts` | Postgres + RLS |
+| API | `/api/reservations`, `/api/guests`, `/api/messages` (overlap → 409) | Browser Supabase client + cron/internal routes |
 | Auth | `proxy.ts` skips login | Supabase Auth cookies |
 | Jobs | In-memory queue fallback | `sync_jobs` table + cron routes |
+
+Demo writes persist for the life of the Next.js process (page refresh is fine; restarting `npm run dev` reseeds). Conflict detection lives in `lib/domain/conflicts.ts` and is applied on reservation create/update. Optional `DEMO_SIMULATE_ERRORS=1` injects rare 503s on demo routes.
+
+More on sync and RLS: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Production-minded pieces: fail-closed cron/internal auth, webhook HMAC with `timingSafeEqual`, service-role only on the server.
 
@@ -95,6 +100,7 @@ Portuguese operator notes: [DASHBOARD.md](DASHBOARD.md).
 
 ```bash
 npm run dev      # demo on :3000
+npm test         # domain unit tests (Vitest)
 npm run build
 npm run lint
 ```

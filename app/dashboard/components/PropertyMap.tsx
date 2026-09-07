@@ -5,8 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import type { Map as MLMap, Marker as MLMarker } from 'maplibre-gl';
 import { MapPin, Search, Loader2 } from 'lucide-react';
-import { useLocale } from '@/lib/i18n';
-import type { Locale } from '@/lib/i18n';
+import { useLocale, type Locale } from '@/lib/i18n';
 
 // ── shared types ───────────────────────────────────────────────────────────────
 
