@@ -1,24 +1,26 @@
 import type { MonthStatRow } from './occupancy-analytics';
 
-/**
- * Ficheiro CSV (UTF-8 com BOM) que o Excel abre com colunas e acentos corretos.
- * Separador `;` (comum em PT-PT no Excel). Alinhado com a tabela do ecrã.
- */
-export function downloadOccupancyTableExcel(from: string, to: string, monthRows: MonthStatRow[]) {
-  const header = [
-    'Mes (YYYY-MM)',
-    'Rotulo',
-    'Noites',
-    'Receita (EUR)',
-    'Ocupacao (%)',
-    'ADR (EUR)',
-    'RevPAR (EUR)',
-    'Dias no mes',
-    'Ocup ano ant (%)',
-    'Rec ano ant (EUR)',
-    'YoY ocup (pp)',
-    'YoY receita (%)',
-  ];
+export type OccupancyTableHeaders = readonly [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+];
+
+export function downloadOccupancyTableExcel(
+  _from: string,
+  _to: string,
+  monthRows: MonthStatRow[],
+  opts: { headers: OccupancyTableHeaders; filename: string }
+) {
   const body = monthRows.map((r) =>
     [
       r.key,
@@ -37,11 +39,11 @@ export function downloadOccupancyTableExcel(from: string, to: string, monthRows:
       .map(escapeCsv)
       .join(';')
   );
-  const csv = ['\uFEFF' + header.join(';'), ...body].join('\r\n');
+  const csv = ['\uFEFF' + opts.headers.join(';'), ...body].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `historico-ocupacao-tabela-${from}-a-${to}.csv`;
+  a.download = opts.filename;
   a.click();
   URL.revokeObjectURL(a.href);
 }

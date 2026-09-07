@@ -6,6 +6,7 @@ import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import type { Channel, Guest, Reservation, ReservationStatus } from '@/lib/types';
 import { useSettings } from '@/lib/hooks/use-settings';
+import { useT, tChannel, tStatus, displayRoomLabel } from '@/lib/i18n';
 
 const INPUT = 'w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] focus:border-transparent bg-white';
 
@@ -31,6 +32,7 @@ interface QuickReservationModalProps {
 }
 
 export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickReservationModalProps) {
+  const t = useT();
   const supabase = IS_DEMO ? null : createClient();
   const settings = useSettings();
 
@@ -50,11 +52,11 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
 
   async function handleSave() {
     if (!form.check_in || !form.check_out || !form.guest_name) {
-      setFormError('Nome do hóspede, check-in e check-out são obrigatórios.');
+      setFormError(t('reservations.required'));
       return;
     }
     if (form.check_in >= form.check_out) {
-      setFormError('Check-out tem de ser depois do check-in.');
+      setFormError(t('reservations.checkoutAfter'));
       return;
     }
     setSaving(true);
@@ -78,7 +80,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.ok) {
-          throw new Error(String(json.error ?? 'Não foi possível criar a reserva.'));
+          throw new Error(String(json.error ?? t('reservations.saveFailed')));
         }
 
         const guestId = (json.guest?.id as string | undefined) ?? null;
@@ -141,7 +143,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
         setSaving(false);
         onSaved?.({
           ok: true,
-          message: 'Reserva criada.',
+          message: t('reservations.created'),
           guestId,
           guestName,
           reservationId,
@@ -200,7 +202,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       setSaving(false);
       onSaved?.({
         ok: true,
-        message: 'Reserva criada.',
+        message: t('reservations.created'),
         guestId,
         guestName: form.guest_name,
         reservationId: (r as { id: string } | null)?.id ?? null,
@@ -208,7 +210,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       onClose();
     } catch (e) {
       setSaving(false);
-      const msg = e instanceof Error ? e.message : 'Não foi possível criar a reserva.';
+      const msg = e instanceof Error ? e.message : t('reservations.saveFailed');
       setFormError(msg);
       onSaved?.({
         ok: false,
@@ -225,20 +227,20 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       <div className="max-h-[90dvh] w-full max-w-md cursor-default overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-[#E0DBCF]">
           <div>
-            <h2 className="font-serif font-bold text-[#4A4A4A]">Nova reserva</h2>
+            <h2 className="font-serif font-bold text-[#4A4A4A]">{t('reservations.newTitle')}</h2>
             <p className="text-xs text-[#888] mt-0.5">{initialRoom}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-            aria-label="Fechar"
+            aria-label={t('common.close')}
           >
             <X size={18} aria-hidden />
           </button>
         </div>
         <div className="p-5 space-y-4">
-          <Field label="Nome do hóspede *">
+          <Field label={t('reservations.guestName')}>
             <input
               type="text"
               value={form.guest_name}
@@ -248,7 +250,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
               autoFocus
             />
           </Field>
-          <Field label="Email do hóspede">
+          <Field label={t('reservations.guestEmail')}>
             <input
               type="email"
               value={form.guest_email}
@@ -258,7 +260,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Check-in *">
+            <Field label={t('reservations.labelCheckIn')}>
               <input
                 type="date"
                 value={form.check_in}
@@ -266,7 +268,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
                 className={INPUT}
               />
             </Field>
-            <Field label="Check-out *">
+            <Field label={t('reservations.labelCheckOut')}>
               <input
                 type="date"
                 value={form.check_out}
@@ -275,40 +277,44 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
               />
             </Field>
           </div>
-          <Field label="Quarto">
+          <Field label={t('reservations.room')}>
             <select
               value={form.room}
               onChange={(e) => setForm({ ...form, room: e.target.value })}
               className={INPUT}
             >
-              {settings.room_names.map((r) => <option key={r}>{r}</option>)}
+              {settings.room_names.map((r) => (
+                <option key={r} value={r}>
+                  {displayRoomLabel(r, t)}
+                </option>
+              ))}
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Canal">
+            <Field label={t('reservations.channel')}>
               <select
                 value={form.channel}
                 onChange={(e) => setForm({ ...form, channel: e.target.value as Channel })}
                 className={INPUT}
               >
-                <option value="direct">Direto</option>
-                <option value="airbnb">Airbnb</option>
-                <option value="booking">Booking.com</option>
+                <option value="direct">{tChannel(t, 'direct')}</option>
+                <option value="airbnb">{tChannel(t, 'airbnb')}</option>
+                <option value="booking">{t('channel.bookingCom')}</option>
               </select>
             </Field>
-            <Field label="Estado">
+            <Field label={t('reservations.status')}>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as ReservationStatus })}
                 className={INPUT}
               >
-                <option value="confirmed">Confirmada</option>
-                <option value="pending">Pendente</option>
-                <option value="checked_in">Check-in feito</option>
+                <option value="confirmed">{tStatus(t, 'confirmed')}</option>
+                <option value="pending">{tStatus(t, 'pending')}</option>
+                <option value="checked_in">{tStatus(t, 'checked_in')}</option>
               </select>
             </Field>
           </div>
-          <Field label="Total (€)">
+          <Field label={t('reservations.totalEur')}>
             <input
               type="number"
               min="0"
@@ -330,7 +336,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
             disabled={saving}
             className="w-full bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
           >
-            {saving ? 'A guardar…' : 'Criar reserva'}
+            {saving ? t('common.saving') : t('reservations.create')}
           </button>
         </div>
       </div>

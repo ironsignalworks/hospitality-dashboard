@@ -28,7 +28,7 @@ export function parseSettings(rows: { key: string; value: string }[]): AppSettin
   const roomNames = Array.from({ length: roomCount }, (_, i) =>
     map[`setting_room_${i + 1}_name`] ??
     DEFAULT_SETTINGS.room_names[i] ??
-    `Quarto ${i + 1}`
+    `Room ${i + 1}`
   );
 
   return {
@@ -53,7 +53,7 @@ export function settingsToRows(
   for (let i = 0; i < s.room_count; i++) {
     rows.push({
       key: `setting_room_${i + 1}_name`,
-      value: s.room_names[i] ?? `Quarto ${i + 1}`,
+      value: s.room_names[i] ?? `Room ${i + 1}`,
       updated_at: now,
     });
   }

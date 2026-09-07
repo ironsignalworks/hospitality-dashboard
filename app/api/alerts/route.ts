@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
   try {
     ({ guest_id, message, notify_at } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   if (!guest_id || !message?.trim() || !notify_at) {
-    return NextResponse.json({ error: 'Campos obrigatórios em falta' }, { status: 400 });
+    return NextResponse.json({ error: 'Required fields are missing' }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -48,10 +48,10 @@ export async function PATCH(request: NextRequest) {
   try {
     ({ id } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -70,10 +70,10 @@ export async function DELETE(request: NextRequest) {
   try {
     ({ id } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
   const supabase = await createClient();
   const { error } = await supabase.from('guest_alerts').delete().eq('id', id);

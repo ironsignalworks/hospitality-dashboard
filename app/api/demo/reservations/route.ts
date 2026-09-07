@@ -55,13 +55,13 @@ export async function POST(request: Request) {
 
   if (!guestName || !checkIn || !checkOut) {
     return NextResponse.json(
-      { ok: false, error: 'Nome do hóspede, check-in e check-out são obrigatórios.' },
+      { ok: false, error: 'Guest name, check-in and check-out are required.' },
       { status: 400 }
     );
   }
   if (checkIn >= checkOut) {
     return NextResponse.json(
-      { ok: false, error: 'Check-out tem de ser depois do check-in.' },
+      { ok: false, error: 'Check-out must be after check-in.' },
       { status: 400 }
     );
   }

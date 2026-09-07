@@ -7,12 +7,8 @@ import { ArrowRight } from 'lucide-react';
 import { ChannelIcon } from './channel-icon';
 import { GuestPanel } from './guest-panel';
 import type { Reservation } from '@/lib/types';
-
-const CHANNEL_LABEL: Record<string, string> = {
-  airbnb: 'Airbnb',
-  booking: 'Booking',
-  direct: 'Direto',
-};
+import { formatDate, stripTZ } from '@/lib/dashboard-date-helpers';
+import { useLocale, tChannel, displayRoomLabel } from '@/lib/i18n';
 
 const CHANNEL_COLOR: Record<string, string> = {
   airbnb: 'bg-dash-airbnb text-white',
@@ -20,20 +16,9 @@ const CHANNEL_COLOR: Record<string, string> = {
   direct: 'bg-dash-olive text-white',
 };
 
-function formatDatePT(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-PT', {
-    weekday: 'short',
-    day: 'numeric',
-    month: '2-digit',
-  });
-}
-
-function stripTZ(dateStr: string) {
-  return typeof dateStr === 'string' ? dateStr.split('T')[0] : dateStr;
-}
-
 export function ProximasChegadasSection({ today, reservations }: { today: string; reservations: Reservation[] }) {
   const router = useRouter();
+  const { locale, t } = useLocale();
   const [panel, setPanel] = useState<{ id: string; name?: string; reservationId: string } | null>(null);
 
   const arrivals = reservations
@@ -45,12 +30,12 @@ export function ProximasChegadasSection({ today, reservations }: { today: string
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-dash-muted uppercase tracking-wide">Próximas chegadas</h2>
+        <h2 className="text-sm font-semibold text-dash-muted uppercase tracking-wide">{t('today.upcomingArrivals')}</h2>
         <Link
           href="/dashboard/reservations"
           className="text-xs font-semibold text-dash-accent hover:underline flex items-center gap-1"
         >
-          Ver todas <ArrowRight size={12} aria-hidden />
+          {t('today.viewAll')} <ArrowRight size={12} aria-hidden />
         </Link>
       </div>
       <ul className="space-y-2">
@@ -71,10 +56,10 @@ export function ProximasChegadasSection({ today, reservations }: { today: string
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-[#4A4A4A]">
-                    {guest?.name ?? 'Hóspede sem nome'}
+                    {guest?.name ?? t('common.unnamedGuest')}
                   </p>
                   <p className="mt-0.5 text-xs text-dash-muted">
-                    {r.room} · {formatDatePT(r.check_in)} → {formatDatePT(r.check_out)}
+                    {displayRoomLabel(r.room, t)} · {formatDate(r.check_in, locale, { weekday: 'short', day: 'numeric', month: '2-digit' })} → {formatDate(r.check_out, locale, { weekday: 'short', day: 'numeric', month: '2-digit' })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -84,7 +69,7 @@ export function ProximasChegadasSection({ today, reservations }: { today: string
                     }`}
                   >
                     <ChannelIcon channel={r.channel} size={10} />
-                    {CHANNEL_LABEL[r.channel] ?? r.channel}
+                    {tChannel(t, r.channel)}
                   </span>
                   <span className="text-[#CCC] pointer-events-none" aria-hidden>
                     <ArrowRight size={14} />

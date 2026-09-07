@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ChannelIcon } from './channel-icon';
 import { GuestPanel } from './guest-panel';
 import { QuickReservationModal } from './quick-reservation-modal';
+import { useT, displayRoomLabel } from '@/lib/i18n';
 
 export type RoomCardData = {
   room: string;
@@ -20,11 +21,6 @@ export type RoomCardData = {
   checkOut: string;
 };
 
-const CHANNEL_LABEL: Record<string, string> = {
-  airbnb: 'Airbnb',
-  booking: 'Booking',
-  direct: 'Direto',
-};
 const CHANNEL_COLOR: Record<string, string> = {
   airbnb: 'bg-dash-airbnb text-white',
   booking: 'bg-[#003580] text-white',
@@ -32,6 +28,7 @@ const CHANNEL_COLOR: Record<string, string> = {
 };
 
 export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
+  const t = useT();
   const router = useRouter();
   const [panelGuestId, setPanelGuestId] = useState<string | null>(null);
   const [panelGuestName, setPanelGuestName] = useState<string | null>(null);
@@ -78,14 +75,14 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
                 className="rounded-2xl p-5 border bg-white text-[#4A4A4A] border-[#E0DBCF] text-left w-full hover:border-[#DAA520]/60 hover:bg-[#FFFCF6] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] focus-visible:ring-offset-2 group"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-sm">{card.room}</span>
+                  <span className="font-semibold text-sm">{displayRoomLabel(card.room, t)}</span>
                   <BedDouble size={18} className="text-[#CCC] group-hover:text-[#DAA520]/60 transition-colors" aria-hidden />
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-dash-muted">Livre</p>
+                  <p className="text-sm text-dash-muted">{t('room.vacant')}</p>
                   <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-dash-accent font-medium">
                     <Plus size={11} aria-hidden />
-                    Reservar
+                    {t('room.book')}
                   </span>
                 </div>
               </button>
@@ -104,7 +101,7 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
               className="rounded-2xl p-5 border bg-[#4A4A4A] text-white border-[#4A4A4A] text-left w-full hover:bg-[#3A3A3A] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] focus-visible:ring-offset-2"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-sm">{card.room}</span>
+                <span className="font-semibold text-sm">{displayRoomLabel(card.room, t)}</span>
                 <BedDouble size={18} className="text-[#DAA520]" aria-hidden />
               </div>
 
@@ -112,29 +109,29 @@ export function RoomCardsSection({ cards }: { cards: RoomCardData[] }) {
                 <div className="flex items-center gap-1.5 flex-wrap mb-1">
                   {card.isCheckinToday && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dash-olive text-white font-semibold">
-                      Check-in hoje
+                      {t('room.checkinToday')}
                     </span>
                   )}
                   {card.isCheckoutToday && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-dash-checkout text-white font-semibold">
-                      Check-out hoje
+                      {t('room.checkoutToday')}
                     </span>
                   )}
                 </div>
               )}
 
-              <p className="text-sm font-medium truncate">{card.guestName ?? 'Hóspede'}</p>
+              <p className="text-sm font-medium truncate">{card.guestName ?? t('common.guest')}</p>
               <p className="text-xs text-white mt-0.5">
                 {card.nightsLeft === 0
-                  ? 'Última noite'
+                  ? t('room.lastNight')
                   : card.nightsLeft === 1
-                    ? '1 noite restante'
-                    : `${card.nightsLeft} noites restantes`}
-                {' · '}até {card.checkOut}
+                    ? t('room.nightsLeftOne')
+                    : t('room.nightsLeftMany', { n: card.nightsLeft })}
+                {' · '}{t('common.until', { date: card.checkOut })}
               </p>
               <span className={`inline-flex items-center gap-1 mt-2 text-xs px-2 py-0.5 rounded-full ${CHANNEL_COLOR[card.channel] ?? 'bg-dash-muted text-white'}`}>
                 <ChannelIcon channel={card.channel} size={10} />
-                {CHANNEL_LABEL[card.channel] ?? card.channel}
+                {t(`channel.${card.channel}`) === `channel.${card.channel}` ? card.channel : t(`channel.${card.channel}`)}
               </span>
             </button>
           );

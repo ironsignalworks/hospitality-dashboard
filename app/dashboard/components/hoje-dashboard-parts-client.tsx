@@ -4,18 +4,21 @@ import Link from 'next/link';
 import { useAppSettings } from './app-settings-provider';
 import { RoomCardsSection, type RoomCardData } from './room-cards-section';
 import type { Reservation } from '@/lib/types';
-import { formatDatePT, stripTZ } from '@/lib/dashboard-date-helpers';
+import { formatDate, formatWeekdayShort, stripTZ } from '@/lib/dashboard-date-helpers';
+import { useLocale } from '@/lib/i18n';
 
 export function HojeOccupationHeaderClient({
-  salutation,
   today,
   reservations,
 }: {
-  salutation: string;
   today: string;
   reservations: Reservation[];
 }) {
   const appSettings = useAppSettings();
+  const { locale, t } = useLocale();
+  const hour = new Date().getHours();
+  const salutation =
+    hour < 5 || hour >= 22 ? t('today.goodNight') : hour < 12 ? t('today.goodMorning') : t('today.goodAfternoon');
 
   const occupiedRooms = new Set(
     reservations
@@ -34,21 +37,25 @@ export function HojeOccupationHeaderClient({
           {salutation}
         </p>
         <h1 className="mt-1 text-2xl font-bold font-serif text-[#4A4A4A] sm:text-3xl">
-          Hoje, {formatDatePT(today)}
+          {t('today.title', { date: formatDate(today, locale) })}
         </h1>
         <p className="mt-1 text-sm text-dash-muted">
-          {appSettings.property_name} · {occupiedCount}/{appSettings.room_count} quartos ocupados
+          {t('today.occupiedLine', {
+            name: appSettings.property_name,
+            occupied: occupiedCount,
+            total: appSettings.room_count,
+          })}
         </p>
       </div>
       <div className="flex items-center gap-3 rounded-2xl border border-[#E8E4DA] bg-white px-4 py-3 shadow-sm sm:max-w-xs sm:shrink-0">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-dash-muted">Ocupação agora</p>
+          <p className="text-xs font-medium text-dash-muted">{t('today.occupancyNow')}</p>
           <p className="text-lg font-bold tabular-nums text-[#4A4A4A]">{occupancyPct}%</p>
         </div>
         <div
           className="h-2 w-24 overflow-hidden rounded-full bg-[#EEE] sm:w-28"
           role="img"
-          aria-label={`${occupancyPct} por cento de ocupação`}
+          aria-label={t('today.occupancyAria', { pct: occupancyPct })}
         >
           <div
             className={`h-full rounded-full bg-gradient-to-r from-[#DAA520] to-[#B8860B] transition-all duration-500 ${
@@ -69,6 +76,7 @@ export function HojeRoomCardsWithSettingsClient({
   reservations: Reservation[];
 }) {
   const appSettings = useAppSettings();
+  const { locale } = useLocale();
 
   const cards: RoomCardData[] = appSettings.room_names.map((room) => {
     const res = reservations.find(
@@ -89,7 +97,7 @@ export function HojeRoomCardsWithSettingsClient({
           )
         : 0,
       channel: res?.channel ?? 'direct',
-      checkOut: res ? formatDatePT(stripTZ(res.check_out)) : '',
+      checkOut: res ? formatDate(stripTZ(res.check_out), locale) : '',
     };
   });
 
@@ -107,6 +115,7 @@ export function HojeSevenDayGridClient({
   reservations: Reservation[];
 }) {
   const appSettings = useAppSettings();
+  const { locale } = useLocale();
 
   return (
     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-hidden px-1 pb-2 [scrollbar-width:thin] sm:grid sm:min-w-0 sm:snap-none sm:grid-cols-7 sm:overflow-visible sm:pb-0">
@@ -130,7 +139,7 @@ export function HojeSevenDayGridClient({
                 isToday ? 'text-[#3D2E00]' : 'text-dash-muted'
               }`}
             >
-              {new Date(day + 'T00:00:00').toLocaleDateString('pt-PT', { weekday: 'short' })}
+              {formatWeekdayShort(day, locale)}
             </p>
             <p className="mt-0.5 text-lg font-bold leading-tight tabular-nums">
               {new Date(day + 'T00:00:00').getDate()}

@@ -1,6 +1,6 @@
 import { IS_DEMO, MOCK_RESERVATIONS, MOCK_MESSAGES } from '@/lib/demo';
 import Link from 'next/link';
-import { ArrowRight, BarChart2, MessageSquare, TrendingUp, FileEdit, Users } from 'lucide-react';
+import { BarChart2, MessageSquare, TrendingUp, FileEdit, Users } from 'lucide-react';
 import { AppSettingsProvider } from './components/app-settings-provider';
 import {
   HojeOccupationHeaderClient,
@@ -12,6 +12,7 @@ import { DashboardNovaReservaAtalho } from './components/dashboard-nova-reserva-
 import { ProximasChegadasSection } from './components/proximas-chegadas-section';
 import type { Reservation } from '@/lib/types';
 import { DEFAULT_SETTINGS, parseSettings } from '@/lib/services/settings-service';
+import { T } from '@/lib/i18n';
 import { stripTZ } from '@/lib/dashboard-date-helpers';
 
 function todayStr() {
@@ -71,26 +72,21 @@ export default async function DashboardToday() {
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
-  const hour = new Date().getHours();
-  const salutation =
-    hour < 5 || hour >= 22 ? 'Boa noite' : hour < 12 ? 'Bom dia' : 'Boa tarde';
-
   return (
     <AppSettingsProvider initial={appSettings} isDemo={IS_DEMO}>
     <div className="space-y-6 p-4 sm:p-6 lg:p-8 lg:space-y-8">
       <HojeOccupationHeaderClient
-        salutation={salutation}
         today={today}
         reservations={reservations}
       />
       <p className="text-xs text-dash-muted -mt-3">
-        Centro de operacoes: monitorizacao diaria, atalhos e contexto em tempo real num unico painel.
+        <T k="today.blurb" />
       </p>
 
       {/* Quick actions — thumb-friendly on mobile */}
       <section aria-labelledby="hoje-atalhos-heading">
         <h2 id="hoje-atalhos-heading" className="mb-2 text-xs font-semibold uppercase tracking-wide text-dash-muted">
-          Atalhos
+          <T k="today.shortcuts" />
         </h2>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <DashboardNovaReservaAtalho />
@@ -99,14 +95,14 @@ export default async function DashboardToday() {
             className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
             <BarChart2 size={18} className="shrink-0 text-dash-olive" aria-hidden />
-            Ocupação
+            <T k="nav.occupancy" />
           </Link>
           <Link
             href="/dashboard/messages"
             className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
             <MessageSquare size={18} className="shrink-0 text-[#4A4A4A]" aria-hidden />
-            Mensagens
+            <T k="nav.messages" />
             {unreadCount > 0 ? (
               <span className="ml-0.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                 {unreadCount}
@@ -118,14 +114,14 @@ export default async function DashboardToday() {
             className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
             <FileEdit size={18} className="shrink-0 text-dash-checkout" aria-hidden />
-            Concierge
+            <T k="nav.concierge" />
           </Link>
           <Link
             href="/dashboard/guests"
             className="inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-xl border border-[#E0DBCF] bg-white px-3 py-3 text-sm font-semibold text-[#4A4A4A] shadow-sm transition-colors hover:border-[#DAA520] hover:text-dash-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] sm:min-h-0 sm:px-4"
           >
             <Users size={18} className="shrink-0 text-dash-accent" aria-hidden />
-            Hóspedes
+            <T k="nav.guests" />
           </Link>
         </div>
       </section>
@@ -140,7 +136,7 @@ export default async function DashboardToday() {
       {/* Room occupancy */}
       <section>
         <h2 className="text-sm font-semibold text-dash-muted uppercase tracking-wide mb-3">
-          Quartos — estado atual
+          <T k="today.roomsHeading" />
         </h2>
         <HojeRoomCardsWithSettingsClient today={today} reservations={reservations} />
       </section>
@@ -149,9 +145,9 @@ export default async function DashboardToday() {
       <section>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-dash-muted">
-            Próximos 7 dias
+            <T k="today.next7" />
           </h2>
-          <p className="text-xs text-dash-muted sm:hidden">Deslize para ver todos os dias</p>
+          <p className="text-xs text-dash-muted sm:hidden"><T k="today.swipeDays" /></p>
         </div>
         <div className="-mx-1">
           <HojeSevenDayGridClient today={today} days={days} reservations={reservations} />
@@ -163,12 +159,12 @@ export default async function DashboardToday() {
       {reservations.length === 0 && (
         <div className="text-center py-16 text-dash-muted">
           <TrendingUp size={40} className="mx-auto mb-3 opacity-30" aria-hidden />
-          <p className="font-medium">Sem reservas nos próximos 7 dias</p>
+          <p className="font-medium"><T k="today.emptyWeek" /></p>
           <Link
             href="/dashboard/reservations"
             className="mt-3 inline-block text-sm font-semibold text-dash-accent hover:underline"
           >
-            Adicionar reserva manual
+            <T k="today.addManual" />
           </Link>
         </div>
       )}

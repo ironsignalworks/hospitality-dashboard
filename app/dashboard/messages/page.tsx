@@ -18,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { Message } from '@/lib/types';
+import { useLocale, localeToBcp47, type Locale } from '@/lib/i18n';
 
 type MessageWithRelations = Message & {
   guest: { name: string; id: string } | null;
@@ -42,7 +43,7 @@ function groupConversations(messages: MessageWithRelations[]): Conversation[] {
     if (!map.has(key)) {
       map.set(key, {
         key,
-        guestName: m.guest?.name ?? 'Hóspede desconhecido',
+        guestName: m.guest?.name ?? '',
         guestId: m.guest_id,
         reservationRoom: m.reservation?.room ?? null,
         messages: [],
@@ -61,8 +62,8 @@ function groupConversations(messages: MessageWithRelations[]): Conversation[] {
   );
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString('pt-PT', {
+function formatTime(iso: string, locale: Locale) {
+  return new Date(iso).toLocaleString(localeToBcp47(locale), {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -71,6 +72,7 @@ function formatTime(iso: string) {
 }
 
 export default function MessagesPage() {
+  const { locale, t } = useLocale();
   const supabase = IS_DEMO ? null : createClient();
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,10 +99,10 @@ export default function MessagesPage() {
       .from('messages')
       .select('*, guest:guests(id,name), reservation:reservations(room,check_in,check_out)')
       .order('created_at', { ascending: true });
-    if (error) setFetchError('Erro ao carregar mensagens.');
+    if (error) setFetchError(t('messages.loadError'));
     setMessages((data as MessageWithRelations[]) ?? []);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, t]);
 
   useEffect(() => {
     fetchMessages();
@@ -264,7 +266,7 @@ export default function MessagesPage() {
     setSubmitting(false);
   }
 
-  function useAiDraft(conv: Conversation) {
+  function applyAiDraft(conv: Conversation) {
     const aiMsg = conv.messages.slice().reverse().find((m) => m.role === 'ai');
     if (aiMsg) setReplyText(aiMsg.body);
   }
@@ -279,19 +281,19 @@ export default function MessagesPage() {
       <div className={`flex flex-col ${selectedWithLatest ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 border-r border-[#E0DBCF] bg-white`}>
         <div className="p-4 border-b border-[#E0DBCF] flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-serif font-bold text-[#4A4A4A]">Mensagens</h1>
+            <h1 className="text-xl font-serif font-bold text-[#4A4A4A]">{t('messages.title')}</h1>
             <p className="text-xs text-[#888] mt-0.5">
-              Conversas por hóspede, com rascunhos assistidos por IA.
+              {t('messages.subtitle')}
             </p>
             {unreadTotal > 0 && (
-              <p className="text-xs text-red-500 font-medium">{unreadTotal} conversa(s) por responder</p>
+              <p className="text-xs text-red-500 font-medium">{t('messages.unread', { n: unreadTotal })}</p>
             )}
           </div>
           <button
             type="button"
             onClick={() => setNewMsgOpen(true)}
             className="p-1.5 rounded-lg bg-[#DAA520] text-white hover:bg-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
-            aria-label="Nova mensagem simulada"
+            aria-label={t('messages.newSimulated')}
           >
             <Plus size={16} aria-hidden />
           </button>
@@ -299,14 +301,14 @@ export default function MessagesPage() {
 
         <div className="flex-1 overflow-y-auto divide-y divide-[#F0EDE6]">
           {loading ? (
-            <div className="p-6 text-center text-sm text-[#888]">A carregar…</div>
+            <div className="p-6 text-center text-sm text-[#888]">{t('common.loading')}</div>
           ) : fetchError ? (
             <div className="p-6 text-center text-sm text-red-500">{fetchError}</div>
           ) : conversations.length === 0 ? (
             <div className="p-6 text-center">
               <MessageSquare size={32} className="mx-auto mb-2 text-[#DDD]" aria-hidden />
-              <p className="text-sm text-[#888]">Nenhuma mensagem ainda.</p>
-              <p className="text-xs text-[#AAA] mt-1">Usa o + para simular uma mensagem de hóspede.</p>
+              <p className="text-sm text-[#888]">{t('messages.empty')}</p>
+              <p className="text-xs text-[#AAA] mt-1">{t('messages.emptyHint')}</p>
             </div>
           ) : (
             conversations.map((conv) => (
@@ -322,9 +324,9 @@ export default function MessagesPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       {conv.hasUnread && (
-                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" aria-label="Não lida" />
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" aria-label={t('messages.unreadDot')} />
                       )}
-                      <p className="font-semibold text-sm text-[#4A4A4A] truncate">{conv.guestName}</p>
+                      <p className="font-semibold text-sm text-[#4A4A4A] truncate">{conv.guestName || t('common.unknownGuest')}</p>
                     </div>
                     {conv.reservationRoom && (
                       <p className="text-xs text-[#888]">{conv.reservationRoom}</p>
@@ -335,7 +337,7 @@ export default function MessagesPage() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-xs text-[#CCC] whitespace-nowrap">
-                      {formatTime(conv.latestAt)}
+                      {formatTime(conv.latestAt, locale)}
                     </p>
                     <ChevronRight size={14} className="text-[#CCC] mt-1 ml-auto" aria-hidden />
                   </div>
@@ -356,12 +358,12 @@ export default function MessagesPage() {
                 type="button"
                 onClick={() => setSelected(null)}
                 className="lg:hidden p-1 rounded-lg text-[#888] hover:text-[#333] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                aria-label="Voltar"
+                aria-label={t('common.back')}
               >
                 <ChevronRight size={18} className="rotate-180" aria-hidden />
               </button>
               <div>
-                <p className="font-semibold text-sm text-[#4A4A4A]">{selectedWithLatest.guestName}</p>
+                <p className="font-semibold text-sm text-[#4A4A4A]">{selectedWithLatest.guestName || t('common.unknownGuest')}</p>
                 {selectedWithLatest.reservationRoom && (
                   <p className="text-xs text-[#888]">{selectedWithLatest.reservationRoom}</p>
                 )}
@@ -374,7 +376,7 @@ export default function MessagesPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E0DBCF] text-xs text-[#666] hover:bg-[#F0EDE6] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
               >
                 <CheckCheck size={13} aria-hidden />
-                Marcar como tratado
+                {t('messages.markHandled')}
               </button>
             )}
           </div>
@@ -391,7 +393,7 @@ export default function MessagesPage() {
                     <div className="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm bg-[#FDF8EE] border border-[#DAA520]/40 text-[#4A4A4A] rounded-tr-sm">
                       <div className="flex items-center gap-1.5 mb-1.5 text-[#B8860B]">
                         <CalendarClock size={12} aria-hidden />
-                        <span className="text-xs font-semibold">Agendada para {formatTime(m.scheduled_at!)}</span>
+                        <span className="text-xs font-semibold">{t('messages.scheduledFor', { time: formatTime(m.scheduled_at!, locale) })}</span>
                       </div>
                       <p className="leading-relaxed whitespace-pre-wrap opacity-80">{m.body}</p>
                       <div className="flex items-center justify-end mt-2">
@@ -401,7 +403,7 @@ export default function MessagesPage() {
                           className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-600 transition-colors focus:outline-none focus-visible:underline"
                         >
                           <Trash2 size={10} aria-hidden />
-                          Cancelar envio
+                          {t('messages.cancelSend')}
                         </button>
                       </div>
                     </div>
@@ -434,11 +436,11 @@ export default function MessagesPage() {
                     {m.role === 'ai' && (
                       <div className="flex items-center gap-1 mb-1 opacity-60">
                         <Bot size={11} aria-hidden />
-                        <span className="text-xs font-semibold">Rascunho IA</span>
+                        <span className="text-xs font-semibold">{t('messages.aiDraft')}</span>
                       </div>
                     )}
                     <p className="leading-relaxed whitespace-pre-wrap">{m.body}</p>
-                    <p className="text-[10px] opacity-50 mt-1 text-right">{formatTime(m.created_at)}</p>
+                    <p className="text-[10px] opacity-50 mt-1 text-right">{formatTime(m.created_at, locale)}</p>
                   </div>
                   {m.role !== 'guest' && (
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 ${
@@ -461,11 +463,11 @@ export default function MessagesPage() {
             {selectedWithLatest.messages.some((m) => m.role === 'ai') && (
               <button
                 type="button"
-                onClick={() => useAiDraft(selectedWithLatest)}
+                onClick={() => applyAiDraft(selectedWithLatest)}
                 className="flex items-center gap-1.5 text-xs text-[#DAA520] hover:underline"
               >
                 <Bot size={12} aria-hidden />
-                Usar rascunho da IA
+                {t('messages.useAiDraft')}
               </button>
             )}
             <div className="flex gap-2">
@@ -479,7 +481,7 @@ export default function MessagesPage() {
                   }
                 }}
                 rows={2}
-                placeholder={scheduleMode ? 'Mensagem a agendar…' : 'Escreve uma resposta… (Enter para enviar)'}
+                placeholder={scheduleMode ? t('messages.placeholderSchedule') : t('messages.placeholder')}
                 className="flex-1 rounded-xl border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] resize-none"
               />
               <div className="flex flex-col gap-1.5">
@@ -488,8 +490,8 @@ export default function MessagesPage() {
                   onClick={() => { setScheduleMode(false); sendOwnerReply(); }}
                   disabled={!replyText.trim() || sending || scheduleMode}
                   className="px-3 py-2 rounded-xl bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-40 text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
-                  aria-label="Enviar agora"
-                  title="Enviar agora"
+                  aria-label={t('messages.sendNow')}
+                  title={t('messages.sendNow')}
                 >
                   {sending ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Send size={16} aria-hidden />}
                 </button>
@@ -501,8 +503,8 @@ export default function MessagesPage() {
                       ? 'border-[#DAA520] bg-[#FDF8EE] text-[#DAA520]'
                       : 'border-[#E0DBCF] text-[#888] hover:bg-[#F0EDE6]'
                   }`}
-                  aria-label="Agendar mensagem"
-                  title="Agendar mensagem"
+                  aria-label={t('messages.scheduleMessage')}
+                  title={t('messages.scheduleMessage')}
                 >
                   <Clock size={16} aria-hidden />
                 </button>
@@ -514,7 +516,7 @@ export default function MessagesPage() {
               <div className="rounded-xl border border-[#DAA520]/30 bg-[#FDFBF5] p-3 space-y-2.5">
                 <p className="text-xs font-semibold text-[#B8860B] flex items-center gap-1.5">
                   <CalendarClock size={13} aria-hidden />
-                  Agendar envio
+                  {t('messages.scheduleSend')}
                 </p>
 
                 {/* Quick presets from reservation dates */}
@@ -525,14 +527,14 @@ export default function MessagesPage() {
                   const checkOut = res.check_out?.split('T')[0];
                   const presets: { label: string; value: string }[] = [];
                   if (checkIn) {
-                    presets.push({ label: 'Dia check-in 14h', value: `${checkIn}T14:00` });
+                    presets.push({ label: t('messages.checkinDay14h'), value: `${checkIn}T14:00` });
                   }
                   if (checkOut) {
                     const eve = new Date(checkOut + 'T00:00:00');
                     eve.setDate(eve.getDate() - 1);
                     const eveStr = eve.toISOString().split('T')[0];
-                    presets.push({ label: 'Véspera check-out 20h', value: `${eveStr}T20:00` });
-                    presets.push({ label: 'Dia check-out 9h', value: `${checkOut}T09:00` });
+                    presets.push({ label: t('messages.eveCheckout'), value: `${eveStr}T20:00` });
+                    presets.push({ label: t('messages.checkoutDay9h'), value: `${checkOut}T09:00` });
                   }
                   if (presets.length === 0) return null;
                   return (
@@ -558,7 +560,7 @@ export default function MessagesPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="datetime-local"
-                    aria-label="Data e hora de envio"
+                    aria-label={t('messages.sendAt')}
                     value={scheduleAt}
                     onChange={(e) => setScheduleAt(e.target.value)}
                     min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
@@ -571,8 +573,8 @@ export default function MessagesPage() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-50 text-white text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
                   >
                     {scheduling
-                      ? <><Loader2 size={12} className="animate-spin" aria-hidden /> A agendar…</>
-                      : <><CalendarClock size={12} aria-hidden /> Agendar</>
+                      ? <><Loader2 size={12} className="animate-spin" aria-hidden /> {t('messages.scheduling')}</>
+                      : <><CalendarClock size={12} aria-hidden /> {t('messages.schedule')}</>
                     }
                   </button>
                 </div>
@@ -584,7 +586,7 @@ export default function MessagesPage() {
         <div className="hidden lg:flex flex-1 items-center justify-center text-[#888]">
           <div className="text-center">
             <MessageSquare size={40} className="mx-auto mb-3 opacity-20" aria-hidden />
-            <p className="text-sm">Seleciona uma conversa</p>
+            <p className="text-sm">{t('messages.pickConversation')}</p>
           </div>
         </div>
       )}
@@ -594,25 +596,25 @@ export default function MessagesPage() {
         <div className="fixed inset-0 z-50 flex cursor-default items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm cursor-default rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-[#E0DBCF]">
-              <h2 className="font-serif font-bold text-[#4A4A4A]">Simular mensagem de hóspede</h2>
+              <h2 className="font-serif font-bold text-[#4A4A4A]">{t('messages.simulateTitle')}</h2>
               <button
                 type="button"
                 onClick={() => setNewMsgOpen(false)}
                 className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6]"
-                aria-label="Fechar"
+                aria-label={t('common.close')}
               >
                 <X size={18} aria-hidden />
               </button>
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-[#888]">
-                Simula o que um hóspede enviaria; a IA gera um rascunho de resposta.
+                {t('messages.simulateHint')}
               </p>
               <textarea
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
                 rows={4}
-                placeholder="Olá! Qual é a password do Wi-Fi?"
+                placeholder={t('messages.simulatePlaceholder')}
                 className="w-full rounded-xl border border-[#E0DBCF] px-3 py-2.5 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] resize-none"
               />
               <button
@@ -621,7 +623,7 @@ export default function MessagesPage() {
                 disabled={submitting || !newBody.trim()}
                 className="w-full flex items-center justify-center gap-2 bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
               >
-                {submitting ? <><Loader2 size={14} className="animate-spin" aria-hidden /> A processar…</> : 'Enviar e gerar rascunho IA'}
+                {submitting ? <><Loader2 size={14} className="animate-spin" aria-hidden /> {t('messages.processing')}</> : t('messages.sendSimulated')}
               </button>
             </div>
           </div>

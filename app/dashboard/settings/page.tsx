@@ -16,6 +16,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { PropertyMap, type PropertyLocation } from '@/app/dashboard/components/PropertyMap';
+import { useT } from '@/lib/i18n';
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -84,7 +85,7 @@ function writeStorage(props: PropertyConfig[]) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(props)); } catch {}
 }
 
-async function saveToApi(prop: PropertyConfig): Promise<string | null> {
+async function saveToApi(prop: PropertyConfig): Promise<'save' | 'network' | null> {
   if (IS_DEMO) {
     await new Promise((r) => setTimeout(r, 80));
     return null;
@@ -96,13 +97,14 @@ async function saveToApi(prop: PropertyConfig): Promise<string | null> {
       body: JSON.stringify(toSettings(prop)),
     });
     const json = await res.json() as { ok?: boolean; error?: string };
-    return json.ok ? null : (json.error ?? 'Erro ao guardar.');
-  } catch { return 'Erro de rede.'; }
+    return json.ok ? null : 'save';
+  } catch { return 'network'; }
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const t = useT();
   const router = useRouter();
 
   const [properties, setProperties] = useState<PropertyConfig[]>([]);
@@ -178,7 +180,10 @@ export default function SettingsPage() {
       setSavingIds((s) => { const n = new Set(s); n.delete(propId); return n; });
 
       if (err) {
-        setErrors((e) => ({ ...e, [propId]: err }));
+        setErrors((e) => ({
+          ...e,
+          [propId]: err === 'network' ? t('common.networkError') : t('common.saveError'),
+        }));
       } else {
         setSavedIds((s) => new Set(s).add(propId));
         setTimeout(() => setSavedIds((s) => { const n = new Set(s); n.delete(propId); return n; }), 2500);
@@ -195,7 +200,7 @@ export default function SettingsPage() {
   }
 
   function addProperty() {
-    const newProp = defaultProperty(`Propriedade ${properties.length + 1}`);
+    const newProp = defaultProperty(t('settings.propertyDefaultName', { n: properties.length + 1 }));
     setProperties((prev) => {
       const next = [...prev, newProp];
       writeStorage(next);
@@ -219,7 +224,7 @@ export default function SettingsPage() {
     setProperties((prev) =>
       prev.map((p) => {
         if (p.id !== propId || p.rooms.length >= MAX_ROOMS) return p;
-        return { ...p, rooms: [...p.rooms, `Quarto ${p.rooms.length + 1}`] };
+        return { ...p, rooms: [...p.rooms, t('room.defaultName', { n: p.rooms.length + 1 })] };
       })
     );
     schedulePropertySave(propId);
@@ -251,7 +256,7 @@ export default function SettingsPage() {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-[#888]">
         <Loader2 size={16} className="animate-spin" aria-hidden />
-        A carregar…
+        {t('common.loading')}
       </div>
     );
   }
@@ -259,8 +264,8 @@ export default function SettingsPage() {
   return (
     <div className="p-6 lg:p-8 pb-24 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">Definições</h1>
-        <p className="text-sm text-[#888] mt-1">Propriedades e quartos.</p>
+        <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">{t('settings.title')}</h1>
+        <p className="text-sm text-[#888] mt-1">{t('settings.subtitle')}</p>
       </div>
 
       <div className="space-y-5">
@@ -286,7 +291,7 @@ export default function SettingsPage() {
                   value={prop.name}
                   onChange={(e) => updateProperty(prop.id, { name: e.target.value })}
                   className="flex-1 min-w-0 font-semibold text-sm text-[#4A4A4A] bg-transparent border-b border-transparent hover:border-[#E0DBCF] focus:border-[#DAA520] focus:outline-none pb-0.5 transition-colors placeholder:text-[#BBB]"
-                  placeholder="Nome da propriedade"
+                  placeholder={t('settings.propertyName')}
                   maxLength={80}
                 />
 
@@ -295,13 +300,13 @@ export default function SettingsPage() {
                   {isSaving && (
                     <span className="flex items-center gap-1 text-[#AAA]">
                       <Loader2 size={11} className="animate-spin text-[#DAA520]" aria-hidden />
-                      A guardar
+                      {t('common.saving')}
                     </span>
                   )}
                   {isSaved && !isSaving && (
                     <span className="flex items-center gap-1 text-[#708238]">
                       <CheckCircle size={11} aria-hidden />
-                      Guardado
+                      {t('common.saved')}
                     </span>
                   )}
                   {err && <span className="text-red-500 text-[11px]">{err}</span>}
@@ -312,20 +317,20 @@ export default function SettingsPage() {
                   <div className="shrink-0 ml-1">
                     {isDeleteConfirming ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-[#888]">Apagar?</span>
+                        <span className="text-[11px] text-[#888]">{t('settings.deleteConfirm')}</span>
                         <button
                           type="button"
                           onClick={() => deleteProperty(prop.id)}
                           className="text-[11px] px-2 py-0.5 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors focus:outline-none"
                         >
-                          Sim
+                          {t('common.yes')}
                         </button>
                         <button
                           type="button"
                           onClick={() => setDeleteConfirm(null)}
                           className="text-[11px] px-2 py-0.5 rounded-md border border-[#E0DBCF] text-[#666] hover:bg-[#F0EDE6] transition-colors focus:outline-none"
                         >
-                          Não
+                          {t('common.no')}
                         </button>
                       </div>
                     ) : (
@@ -333,7 +338,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => setDeleteConfirm(prop.id)}
                         className="p-1.5 rounded-lg text-[#CCC] hover:text-red-400 hover:bg-red-50 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-red-400"
-                        aria-label="Apagar propriedade"
+                        aria-label={t('settings.deleteProperty')}
                       >
                         <Trash2 size={14} aria-hidden />
                       </button>
@@ -349,7 +354,7 @@ export default function SettingsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <BedDouble size={14} className="text-[#DAA520]" aria-hidden />
-                    <p className="text-xs font-semibold text-[#888] uppercase tracking-wide">Quartos</p>
+                    <p className="text-xs font-semibold text-[#888] uppercase tracking-wide">{t('settings.rooms')}</p>
                     <span className="text-xs text-[#CCC]">{prop.rooms.length} / {MAX_ROOMS}</span>
                   </div>
 
@@ -363,7 +368,7 @@ export default function SettingsPage() {
                           type="text"
                           value={room}
                           onChange={(e) => updateRoom(prop.id, roomIdx, e.target.value)}
-                          placeholder={`Quarto ${roomIdx + 1}`}
+                          placeholder={t('room.defaultName', { n: roomIdx + 1 })}
                           maxLength={40}
                           className="flex-1 min-w-0 rounded-xl border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] focus:border-transparent bg-white"
                         />
@@ -372,7 +377,7 @@ export default function SettingsPage() {
                           onClick={() => removeRoom(prop.id, roomIdx)}
                           disabled={prop.rooms.length <= 1}
                           className="shrink-0 p-1.5 rounded-lg text-[#CCC] hover:text-red-400 hover:bg-red-50 disabled:opacity-25 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-red-400"
-                          aria-label={`Remover ${room}`}
+                          aria-label={t('settings.removeRoom', { room })}
                         >
                           <Trash2 size={14} aria-hidden />
                         </button>
@@ -387,7 +392,7 @@ export default function SettingsPage() {
                       className="mt-3 flex items-center gap-1.5 text-xs font-medium text-[#DAA520] hover:text-[#B8860B] transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#DAA520] rounded px-0.5"
                     >
                       <Plus size={13} aria-hidden />
-                      Adicionar quarto
+                      {t('settings.addRoom')}
                     </button>
                   )}
                 </div>
@@ -396,7 +401,7 @@ export default function SettingsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <MapPin size={14} className="text-[#DAA520]" aria-hidden />
-                    <p className="text-xs font-semibold text-[#888] uppercase tracking-wide">Localização</p>
+                    <p className="text-xs font-semibold text-[#888] uppercase tracking-wide">{t('settings.location')}</p>
                     {prop.location?.address && (
                       <span className="text-xs text-[#CCC] truncate max-w-[160px]">{prop.location.address}</span>
                     )}
@@ -411,11 +416,11 @@ export default function SettingsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Clock size={14} className="text-[#DAA520]" aria-hidden />
-                    <p className="text-xs font-semibold text-[#888] uppercase tracking-wide">Horas de operação</p>
+                    <p className="text-xs font-semibold text-[#888] uppercase tracking-wide">{t('settings.hours')}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-[#888] mb-1.5">Check-in</label>
+                      <label className="block text-xs text-[#888] mb-1.5">{t('settings.checkIn')}</label>
                       <input
                         type="time"
                         value={prop.checkin_time}
@@ -424,7 +429,7 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-[#888] mb-1.5">Check-out</label>
+                      <label className="block text-xs text-[#888] mb-1.5">{t('settings.checkOut')}</label>
                       <input
                         type="time"
                         value={prop.checkout_time}
@@ -446,7 +451,7 @@ export default function SettingsPage() {
           className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#E0DBCF] py-5 text-sm font-medium text-[#AAA] hover:border-[#DAA520] hover:text-[#DAA520] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
         >
           <Plus size={16} aria-hidden />
-          Adicionar propriedade
+          {t('settings.addProperty')}
         </button>
       </div>
     </div>

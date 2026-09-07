@@ -21,12 +21,8 @@ import { GuestPanel } from '../components/guest-panel';
 import type { Reservation, Guest, Channel, ReservationStatus } from '@/lib/types';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { ROOMS } from '@/lib/config/rooms';
-
-const CHANNEL_LABEL: Record<string, string> = {
-  airbnb: 'Airbnb',
-  booking: 'Booking',
-  direct: 'Direto',
-};
+import { useLocale, tChannel, tStatus, displayRoomLabel, type TFunction, type Locale } from '@/lib/i18n';
+import { formatDate, formatMonthYear, weekdayHeaders, stripTZ } from '@/lib/dashboard-date-helpers';
 
 const CHANNEL_COLOR: Record<string, string> = {
   airbnb: 'bg-[#FF5A5F] text-white',
@@ -34,55 +30,49 @@ const CHANNEL_COLOR: Record<string, string> = {
   direct: 'bg-[#708238] text-white',
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  confirmed: 'Confirmada',
-  pending: 'Pendente',
-  cancelled: 'Cancelada',
-  checked_in: 'Check-in feito',
-  checked_out: 'Check-out feito',
+const DATE_NUM: Intl.DateTimeFormatOptions = {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
 };
-
-
-function stripTZ(d: string) { return d?.split('T')[0] ?? d; }
-
-function formatDatePT(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-PT', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
-}
-
-function formatDayLong(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-PT', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
-}
 
 function nights(checkIn: string, checkOut: string) {
   return Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000);
 }
 
-function buildReservationSummaryText(r: Reservation, propertyName: string) {
+function buildReservationSummaryText(
+  r: Reservation,
+  propertyName: string,
+  t: TFunction,
+  locale: Locale
+) {
   const g = r.guest as Guest | null;
   const n = nights(stripTZ(r.check_in), stripTZ(r.check_out));
+  const ci = formatDate(stripTZ(r.check_in), locale, DATE_NUM);
+  const co = formatDate(stripTZ(r.check_out), locale, DATE_NUM);
+  const channel =
+    tChannel(t, r.channel) +
+    (r.external_id != null && String(r.external_id) !== '' ? `  (ref. ${r.external_id})` : '');
   const lines = [
-    `${propertyName} — resumo informativo (interno)`,
+    t('reservationSummary.title', { property: propertyName }),
     '',
-    `Hóspede: ${g?.name ?? '—'}`,
-    g?.email ? `E-mail: ${g.email}` : null,
-    g?.phone ? `Telefone: ${g.phone}` : null,
-    `Quarto: ${r.room}`,
-    `Check-in: ${formatDatePT(stripTZ(r.check_in))}  |  Check-out: ${formatDatePT(stripTZ(r.check_out))}  |  Noites: ${n}`,
-    `Canal: ${CHANNEL_LABEL[r.channel] ?? r.channel}${
-      r.external_id != null && String(r.external_id) !== '' ? `  (ref. ${r.external_id})` : ''
-    }`,
-    `Estado: ${STATUS_LABEL[r.status] ?? r.status}`,
+    t('reservationSummary.guest', { name: g?.name ?? '—' }),
+    g?.email ? t('reservationSummary.email', { email: g.email }) : null,
+    g?.phone ? t('reservationSummary.phone', { phone: g.phone }) : null,
+    t('reservationSummary.room', { room: displayRoomLabel(r.room, t) }),
+    t('reservationSummary.checkIn', { date: ci }),
+    t('reservationSummary.checkOut', { date: co }),
+    t('reservationSummary.nights', { n }),
+    t('reservationSummary.channel', { channel }),
+    t('reservationSummary.status', { status: tStatus(t, r.status) }),
     r.total_eur != null
-      ? `Total indicativo: €${Number(r.total_eur).toFixed(2)} (preços por canal: ver extrato OTA; directo: validar IVA) `
-      : 'Total: não preenchido',
+      ? t('reservationSummary.totalFilled', { amount: Number(r.total_eur).toFixed(2) })
+      : t('reservationSummary.totalEmpty'),
+    r.internal_notes ? t('reservationSummary.notes', { notes: r.internal_notes }) : null,
     '',
-    `ID reserva: ${r.id}`,
+    t('reservationSummary.id', { id: r.id }),
     '—',
-    'Este resumo destina-se a ficheiro interno, cópia para fatura de serviço ou e-mail. Não constitui documento fiscal emitido pelo PMS se não estiver a usar software certificado.',
+    t('reservationSummary.footer'),
   ];
   return lines.filter((x) => x != null).join('\n');
 }
@@ -110,6 +100,7 @@ const EMPTY_FORM: ReservationFormState = {
 };
 
 export default function ReservationsPage() {
+  const { locale, t } = useLocale();
   const supabase = IS_DEMO ? null : createClient();
   const settings = useSettings();
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -154,10 +145,10 @@ export default function ReservationsPage() {
       .from('reservations')
       .select('*, guest:guests(*)')
       .order('check_in', { ascending: true });
-    if (error) showNotice('error', 'Erro ao carregar reservas.');
+    if (error) showNotice('error', t('reservations.loadError'));
     setReservations(data ?? []);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, t]);
 
   useEffect(() => { fetchReservations(); }, [fetchReservations]);
 
@@ -199,7 +190,7 @@ export default function ReservationsPage() {
   }
 
   async function handleSync() {
-    if (IS_DEMO) { alert('Modo demo: sincronização iCal desativada.'); return; }
+    if (IS_DEMO) { alert(t('reservations.demoSync')); return; }
     setSyncing(true);
     await fetch('/api/sync-ical', { method: 'POST' });
     await fetchReservations();
@@ -232,11 +223,11 @@ export default function ReservationsPage() {
 
   async function handleSave() {
     if (!form.check_in || !form.check_out || !form.guest_name) {
-      setFormError('Nome do hóspede, check-in e check-out são obrigatórios.');
+      setFormError(t('reservations.required'));
       return;
     }
     if (form.check_in >= form.check_out) {
-      setFormError('Check-out tem de ser depois do check-in.');
+      setFormError(t('reservations.checkoutAfter'));
       return;
     }
     setSaving(true);
@@ -307,7 +298,7 @@ export default function ReservationsPage() {
         await fetchReservations();
         setModalOpen(false);
         setSaving(false);
-        showNotice('success', editing ? 'Reserva atualizada.' : 'Reserva criada.');
+        showNotice('success', editing ? t('reservations.updated') : t('reservations.created'));
         return;
       }
 
@@ -352,31 +343,31 @@ export default function ReservationsPage() {
       await fetchReservations();
       setModalOpen(false);
       setSaving(false);
-      showNotice('success', editing ? 'Reserva atualizada.' : 'Reserva criada.');
+      showNotice('success', editing ? t('reservations.updated') : t('reservations.created'));
     } catch (e) {
       setSaving(false);
-      const msg = e instanceof Error ? e.message : 'Não foi possível guardar a reserva.';
+      const msg = e instanceof Error ? e.message : t('reservations.saveFailed');
       setFormError(msg);
       showNotice('error', msg);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Eliminar esta reserva?')) return;
+    if (!confirm(t('reservations.confirmDelete'))) return;
     try {
       if (IS_DEMO) {
         const idx = MOCK_RESERVATIONS.findIndex((r) => r.id === id);
         if (idx >= 0) MOCK_RESERVATIONS.splice(idx, 1);
         setReservations((prev) => prev.filter((r) => r.id !== id));
-        showNotice('success', 'Reserva eliminada.');
+        showNotice('success', t('reservations.deleted'));
         return;
       }
       const { error } = await supabase!.from('reservations').delete().eq('id', id);
       if (error) throw new Error(error.message);
       await fetchReservations();
-      showNotice('success', 'Reserva eliminada.');
+      showNotice('success', t('reservations.deleted'));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Não foi possível eliminar a reserva.';
+      const msg = e instanceof Error ? e.message : t('reservations.deleteFailed');
       showNotice('error', msg);
     }
   }
@@ -411,7 +402,7 @@ export default function ReservationsPage() {
       .map((r) => r.room)
   );
 
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  const monthLabel = formatMonthYear(new Date(viewYear, viewMonth, 1), locale);
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
 
   function prevMonth() {
@@ -461,9 +452,9 @@ export default function ReservationsPage() {
       )}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">Reservas</h1>
+          <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">{t('reservations.title')}</h1>
           <p className="text-sm text-[#888] mt-1">
-            Calendário por quarto e canal, com sincronização iCal.
+            {t('reservations.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -474,7 +465,7 @@ export default function ReservationsPage() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#E0DBCF] text-sm text-[#666] hover:bg-[#F0EDE6] transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
           >
             <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} aria-hidden />
-            {syncing ? 'A sincronizar…' : 'Sincronizar iCal'}
+            {syncing ? t('reservations.syncing') : t('reservations.sync')}
           </button>
           <button
             type="button"
@@ -482,7 +473,7 @@ export default function ReservationsPage() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#DAA520] hover:bg-[#B8860B] text-white text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
           >
             <Plus size={15} aria-hidden />
-            Nova reserva
+            {t('reservations.new')}
           </button>
         </div>
       </div>
@@ -495,7 +486,7 @@ export default function ReservationsPage() {
             type="button"
             onClick={prevMonth}
             className="p-1 rounded-lg hover:bg-[#F0EDE6] text-[#666] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-            aria-label="Mês anterior"
+            aria-label={t('reservations.prevMonth')}
           >
             <ChevronLeft size={18} aria-hidden />
           </button>
@@ -507,7 +498,7 @@ export default function ReservationsPage() {
                 onClick={goToday}
                 className="text-xs px-2 py-0.5 rounded-full border border-[#E0DBCF] text-[#888] hover:bg-[#F0EDE6] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
               >
-                Hoje
+                {t('common.today')}
               </button>
             )}
           </div>
@@ -515,7 +506,7 @@ export default function ReservationsPage() {
             type="button"
             onClick={nextMonth}
             className="p-1 rounded-lg hover:bg-[#F0EDE6] text-[#666] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-            aria-label="Próximo mês"
+            aria-label={t('reservations.nextMonth')}
           >
             <ChevronRight size={18} aria-hidden />
           </button>
@@ -525,16 +516,19 @@ export default function ReservationsPage() {
         {isCurrentMonth && (
           <div className="px-5 py-2 border-b border-[#F0EDE6] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-[#888]">
             <span>
-              Hoje: <span className="font-semibold text-[#4A4A4A]">{todayOccupiedRooms.size}/{settings.room_count}</span> quartos ocupados
+              {t('reservations.todayOccupied', {
+                occupied: todayOccupiedRooms.size,
+                total: settings.room_count,
+              })}
             </span>
             <span className="flex items-center gap-3">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-[#708238] shrink-0" aria-hidden />
-                check-in
+                {t('reservations.legendCheckin')}
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-[#BC6C25] shrink-0" aria-hidden />
-                check-out
+                {t('reservations.legendCheckout')}
               </span>
             </span>
           </div>
@@ -542,7 +536,7 @@ export default function ReservationsPage() {
 
         {/* Day-of-week headers */}
         <div className="grid grid-cols-7 text-center">
-          {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => (
+          {weekdayHeaders(locale).map((d) => (
             <div key={d} className="py-2 text-xs font-semibold text-[#888]">{d}</div>
           ))}
 
@@ -593,11 +587,11 @@ export default function ReservationsPage() {
                         className={`w-full text-left text-[10px] px-1 rounded flex items-center gap-0.5 ${
                           CHANNEL_COLOR[r.channel] ?? 'bg-[#888] text-white'
                         } hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A] focus-visible:ring-offset-1 truncate`}
-                        title="Abrir dossiê do hóspede"
+                        title={t('reservations.openDossier')}
                       >
                         <ChannelIcon channel={r.channel} size={8} className="shrink-0 opacity-90" />
                         <span className="truncate">
-                          {(r.guest as { name?: string } | null)?.name?.split(' ')[0] ?? r.room}
+                          {(r.guest as { name?: string } | null)?.name?.split(' ')[0] ?? displayRoomLabel(r.room, t)}
                         </span>
                       </button>
                     ))}
@@ -607,7 +601,7 @@ export default function ReservationsPage() {
                         onClick={() => setSelectedDay(day)}
                         className="w-full text-left text-[10px] text-[#888] pl-1 hover:underline"
                       >
-                        +{dayRes.length - 3} mais
+                        {t('reservations.more', { n: dayRes.length - 3 })}
                       </button>
                     )}
                   </div>
@@ -630,11 +624,13 @@ export default function ReservationsPage() {
           >
             <div className="flex items-start justify-between p-5 border-b border-[#E0DBCF]">
               <div>
-                <h2 className="font-serif font-bold text-[#4A4A4A] capitalize">{formatDayLong(selectedDay)}</h2>
+                <h2 className="font-serif font-bold text-[#4A4A4A] capitalize">
+                  {formatDate(selectedDay, locale, { weekday: 'long', day: 'numeric', month: 'long' })}
+                </h2>
                 <p className="text-xs text-[#888] mt-0.5">
                   {selectedDayRes.length === 0
-                    ? 'Sem reservas'
-                    : `${selectedDayRes.length} reserva${selectedDayRes.length > 1 ? 's' : ''}`}
+                    ? t('reservations.noReservations')
+                    : t('reservations.reservationCount', { n: selectedDayRes.length })}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -644,13 +640,13 @@ export default function ReservationsPage() {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#DAA520] hover:bg-[#B8860B] text-white text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
                 >
                   <Plus size={12} aria-hidden />
-                  Nova reserva
+                  {t('reservations.new')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedDay(null)}
                   className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                  aria-label="Fechar"
+                  aria-label={t('common.close')}
                 >
                   <X size={18} aria-hidden />
                 </button>
@@ -660,13 +656,13 @@ export default function ReservationsPage() {
               {selectedDayRes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <CalendarDays size={32} className="text-[#D0C9BC] mb-2" aria-hidden />
-                  <p className="text-sm text-[#888]">Nenhuma reserva neste dia.</p>
+                  <p className="text-sm text-[#888]">{t('reservations.emptyDay')}</p>
                   <button
                     type="button"
                     onClick={() => { setSelectedDay(null); openAdd(selectedDay); }}
                     className="mt-3 text-sm text-[#DAA520] hover:underline font-medium"
                   >
-                    + Criar reserva para este dia
+                    {t('reservations.createForDay')}
                   </button>
                 </div>
               ) : (
@@ -685,12 +681,12 @@ export default function ReservationsPage() {
                           }
                         }}
                         className="bg-[#FAFAF8] rounded-xl border border-[#E0DBCF] p-3 flex items-start justify-between gap-3 cursor-pointer text-left transition-colors hover:border-[#DAA520]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                        aria-label={`Abrir dossiê de ${(r.guest as Guest | null)?.name ?? 'hóspede'}`}
+                        aria-label={t('reservations.openDossierOf', { name: (r.guest as Guest | null)?.name ?? t('common.guest') })}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <span className="font-medium text-sm text-[#4A4A4A]">
-                              {g?.name ?? (r.guest_id ? '—' : 'Sem ficha de hóspede (editar)')}
+                              {g?.name ?? (r.guest_id ? '—' : t('reservations.noGuestFileEdit'))}
                             </span>
                             <span
                               className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -698,16 +694,16 @@ export default function ReservationsPage() {
                               }`}
                             >
                               <ChannelIcon channel={r.channel} size={10} />
-                              {CHANNEL_LABEL[r.channel] ?? r.channel}
+                              {tChannel(t, r.channel)}
                             </span>
                           </div>
-                          <p className="text-xs text-[#888]">{r.room}</p>
+                          <p className="text-xs text-[#888]">{displayRoomLabel(r.room, t)}</p>
                           <p className="text-xs text-[#888]">
-                            {formatDatePT(stripTZ(r.check_in))} → {formatDatePT(stripTZ(r.check_out))}
-                            {' · '}{nights(stripTZ(r.check_in), stripTZ(r.check_out))} noites
+                            {formatDate(stripTZ(r.check_in), locale, DATE_NUM)} → {formatDate(stripTZ(r.check_out), locale, DATE_NUM)}
+                            {' · '}{t('reservations.nightsCount', { n: nights(stripTZ(r.check_in), stripTZ(r.check_out)) })}
                             {r.total_eur != null ? ` · €${Number(r.total_eur).toFixed(0)}` : ''}
                           </p>
-                          <p className="text-xs text-[#888] mt-0.5">{STATUS_LABEL[r.status] ?? r.status}</p>
+                          <p className="text-xs text-[#888] mt-0.5">{tStatus(t, r.status)}</p>
                         </div>
                         <div
                           className="flex items-center gap-1 shrink-0"
@@ -718,7 +714,7 @@ export default function ReservationsPage() {
                             type="button"
                             onClick={() => { setSelectedDay(null); openEdit(r); }}
                             className="p-1.5 rounded-lg text-[#888] hover:bg-white hover:text-[#4A4A4A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                            aria-label="Editar reserva"
+                            aria-label={t('reservations.edit')}
                           >
                             <Pencil size={14} aria-hidden />
                           </button>
@@ -726,7 +722,7 @@ export default function ReservationsPage() {
                             type="button"
                             onClick={() => handleDelete(r.id)}
                             className="p-1.5 rounded-lg text-[#888] hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                            aria-label="Eliminar"
+                            aria-label={t('reservations.delete')}
                           >
                             <Trash2 size={14} aria-hidden />
                           </button>
@@ -744,13 +740,13 @@ export default function ReservationsPage() {
       {/* Próximas + histórico — abas no mesmo painel */}
       <section
         className="rounded-2xl border border-[#E0DBCF] bg-white shadow-sm overflow-hidden"
-        aria-label="Listas de reservas"
+        aria-label={t('reservations.listsAria')}
       >
         <div className="border-b border-[#E0DBCF] bg-[#FDFCF9] px-1 pt-1 sm:px-2 sm:pt-1.5">
-          <h2 className="sr-only">Reservas em lista</h2>
+          <h2 className="sr-only">{t('reservations.listHeading')}</h2>
           <div
             role="tablist"
-            aria-label="Próximas reservas ou histórico"
+            aria-label={t('reservations.tabsAria')}
             className="flex gap-0.5 p-0.5 rounded-xl bg-[#E8E4DA]/50"
           >
             <button
@@ -766,7 +762,7 @@ export default function ReservationsPage() {
                   : 'text-[#888] hover:text-[#4A4A4A] hover:bg-white/60'
               }`}
             >
-              Próximas
+              {t('reservations.upcoming')}
               <span
                 className="ml-1.5 tabular-nums text-xs font-bold opacity-80"
                 aria-hidden
@@ -785,7 +781,7 @@ export default function ReservationsPage() {
                   : 'text-[#888] hover:text-[#4A4A4A] hover:bg-white/60'
               }`}
             >
-              Histórico
+              {t('reservations.history')}
               <span
                 className="ml-1.5 tabular-nums text-xs font-bold opacity-80"
                 aria-hidden
@@ -802,11 +798,11 @@ export default function ReservationsPage() {
             className="p-3 sm:p-4"
           >
             {loading ? (
-              <p className="text-sm text-[#888]">A carregar…</p>
+              <p className="text-sm text-[#888]">{t('common.loading')}</p>
             ) : (
               <div className="max-h-[min(28rem,50vh)] overflow-y-auto -mx-0.5 px-0.5">
                 {upcoming.length === 0 ? (
-                  <p className="text-sm text-[#888] py-4 text-center sm:text-left">Nenhuma reserva futura.</p>
+                  <p className="text-sm text-[#888] py-4 text-center sm:text-left">{t('reservations.upcomingEmpty')}</p>
                 ) : (
                   <div className="space-y-2 pr-0.5">
                     {upcoming.map((r) => {
@@ -823,12 +819,12 @@ export default function ReservationsPage() {
                             }
                           }}
                           className="bg-white rounded-xl border border-[#E0DBCF] px-4 py-3 flex items-center justify-between gap-4 cursor-pointer text-left transition-colors hover:border-[#DAA520]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                          aria-label={`Abrir dossiê de ${(g as Guest | null)?.name ?? 'hóspede'}`}
+                          aria-label={t('reservations.openDossierOf', { name: (g as Guest | null)?.name ?? t('common.guest') })}
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-medium text-sm text-[#4A4A4A]">
-                                {g?.name ?? (r.guest_id ? '—' : 'Sem ficha de hóspede')}
+                                {g?.name ?? (r.guest_id ? '—' : t('reservations.noGuestFile'))}
                               </span>
                               <span
                                 className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -836,15 +832,15 @@ export default function ReservationsPage() {
                                 }`}
                               >
                                 <ChannelIcon channel={r.channel} size={10} />
-                                {CHANNEL_LABEL[r.channel] ?? r.channel}
+                                {tChannel(t, r.channel)}
                               </span>
                             </div>
                             <p className="text-xs text-[#888] mt-0.5">
-                              {r.room} · {formatDatePT(stripTZ(r.check_in))} → {formatDatePT(stripTZ(r.check_out))} ·{' '}
-                              {nights(stripTZ(r.check_in), stripTZ(r.check_out))} noites
+                              {displayRoomLabel(r.room, t)} · {formatDate(stripTZ(r.check_in), locale, DATE_NUM)} → {formatDate(stripTZ(r.check_out), locale, DATE_NUM)} ·{' '}
+                              {t('reservations.nightsCount', { n: nights(stripTZ(r.check_in), stripTZ(r.check_out)) })}
                               {r.total_eur != null ? ` · €${Number(r.total_eur).toFixed(0)}` : ''}
                             </p>
-                            <p className="text-xs mt-0.5 text-[#888]">{STATUS_LABEL[r.status] ?? r.status}</p>
+                            <p className="text-xs mt-0.5 text-[#888]">{tStatus(t, r.status)}</p>
                           </div>
                           <div
                             className="flex items-center gap-1 shrink-0"
@@ -855,7 +851,7 @@ export default function ReservationsPage() {
                               type="button"
                               onClick={() => openEdit(r)}
                               className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] hover:text-[#4A4A4A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                              aria-label="Editar"
+                              aria-label={t('reservations.edit')}
                             >
                               <Pencil size={15} aria-hidden />
                             </button>
@@ -863,7 +859,7 @@ export default function ReservationsPage() {
                               type="button"
                               onClick={() => handleDelete(r.id)}
                               className="p-1.5 rounded-lg text-[#888] hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                              aria-label="Eliminar"
+                              aria-label={t('reservations.delete')}
                             >
                               <Trash2 size={15} aria-hidden />
                             </button>
@@ -886,14 +882,12 @@ export default function ReservationsPage() {
             className="p-3 sm:p-4"
           >
             <p className="text-xs text-[#999] mb-3 max-w-2xl">
-              Estadias terminadas ou reservas canceladas no passado. Linha: dossié.{' '}
-              <span className="whitespace-nowrap">«Fatura / resumo»</span> para copiar textos informativos; não dispensa
-              fatura no software certificado, se aplicável.
+              {t('reservations.historyHint')}
             </p>
             {loading ? (
-              <p className="text-sm text-[#888]">A carregar…</p>
+              <p className="text-sm text-[#888]">{t('common.loading')}</p>
             ) : pastReservations.length === 0 ? (
-              <p className="text-sm text-[#888]">Ainda sem estadias concluídas no histórico.</p>
+              <p className="text-sm text-[#888]">{t('reservations.historyEmpty')}</p>
             ) : (
               <div className="max-h-[min(28rem,50vh)] overflow-y-auto pr-0.5 rounded-lg border border-[#E0DBCF]/80 bg-[#FDFCF9] p-1.5 -mx-0.5 sm:mx-0">
                 <div className="space-y-1.5 pr-0.5">
@@ -912,7 +906,7 @@ export default function ReservationsPage() {
                             type="button"
                             onClick={() => openGuestFileOrEdit(r)}
                             className="min-w-0 flex-1 text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] rounded-lg -m-0.5 p-0.5 border-0 bg-transparent w-full"
-                            aria-label={`Abrir dossié de ${g?.name ?? 'hóspede'}`}
+                            aria-label={t('reservations.openDossierOf', { name: g?.name ?? t('common.guest') })}
                           >
                             <div className="flex flex-wrap items-center gap-2">
                               <span
@@ -926,23 +920,23 @@ export default function ReservationsPage() {
                                 }`}
                               >
                                 <ChannelIcon channel={r.channel} size={10} />
-                                {CHANNEL_LABEL[r.channel] ?? r.channel}
+                                {tChannel(t, r.channel)}
                               </span>
                               {cancelled && (
-                                <span className="text-[10px] font-semibold uppercase text-red-600/90">Cancelada</span>
+                                <span className="text-[10px] font-semibold uppercase text-red-600/90">{tStatus(t, 'cancelled')}</span>
                               )}
                             </div>
                             <p className="text-xs text-[#888] mt-0.5">
-                              {r.room} · {formatDatePT(stripTZ(r.check_in))} — {formatDatePT(stripTZ(r.check_out))} ·{' '}
-                              {nights(stripTZ(r.check_in), stripTZ(r.check_out))} noites
+                              {displayRoomLabel(r.room, t)} · {formatDate(stripTZ(r.check_in), locale, DATE_NUM)} — {formatDate(stripTZ(r.check_out), locale, DATE_NUM)} ·{' '}
+                              {t('reservations.nightsCount', { n: nights(stripTZ(r.check_in), stripTZ(r.check_out)) })}
                             </p>
                             <p className="text-xs text-[#4A4A4A] mt-0.5">
-                              {r.total_eur != null ? `€${Number(r.total_eur).toFixed(0)}` : 'Total não registado'}
+                              {r.total_eur != null ? `€${Number(r.total_eur).toFixed(0)}` : t('reservations.totalMissing')}
                               {r.external_id != null && String(r.external_id) !== '' && (
                                 <span className="text-[#888]"> · ref. {r.external_id}</span>
                               )}
                             </p>
-                            <p className="text-[10px] text-[#AAA] mt-0.5">{STATUS_LABEL[r.status] ?? r.status}</p>
+                            <p className="text-[10px] text-[#AAA] mt-0.5">{tStatus(t, r.status)}</p>
                           </button>
                           <div
                             className="flex items-center justify-end gap-1 shrink-0 -mr-0.5"
@@ -953,17 +947,17 @@ export default function ReservationsPage() {
                               type="button"
                               onClick={() => setSummaryFor(r)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-[#E0DBCF] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#4A4A4A] hover:bg-[#FFFCF6] hover:border-[#DAA520]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                              title="Fatura, resumo e detalhes para copiar"
+                              title={t('reservations.invoiceSummary')}
                             >
                               <FileText size={14} aria-hidden />
-                              <span className="hidden sm:inline">Fatura / resumo</span>
-                              <span className="sm:hidden">Resumo</span>
+                              <span className="hidden sm:inline">{t('reservations.invoiceSummary')}</span>
+                              <span className="sm:hidden">{t('reservations.summaryShort')}</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => openEdit(r)}
                               className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                              aria-label="Editar reserva"
+                              aria-label={t('reservations.edit')}
                             >
                               <Pencil size={15} />
                             </button>
@@ -971,7 +965,7 @@ export default function ReservationsPage() {
                               type="button"
                               onClick={() => handleDelete(r.id)}
                               className="p-1.5 rounded-lg text-[#888] hover:bg-red-50 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                              aria-label="Eliminar reserva do histórico"
+                              aria-label={t('reservations.deleteHistory')}
                             >
                               <Trash2 size={15} />
                             </button>
@@ -993,56 +987,60 @@ export default function ReservationsPage() {
           <div className="max-h-[90dvh] w-full max-w-md cursor-default overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-[#E0DBCF]">
               <h2 className="font-serif font-bold text-[#4A4A4A]">
-                {editing ? 'Editar reserva' : 'Nova reserva'}
+                {editing ? t('reservations.editTitle') : t('reservations.newTitle')}
               </h2>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
                 className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                aria-label="Fechar"
+                aria-label={t('common.close')}
               >
                 <X size={18} aria-hidden />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <Field label="Nome do hóspede *">
+              <Field label={t('reservations.guestName')}>
                 <input type="text" value={form.guest_name} onChange={(e) => setForm({ ...form, guest_name: e.target.value })} className={INPUT} placeholder="Maria Silva" />
               </Field>
-              <Field label="Email do hóspede">
+              <Field label={t('reservations.guestEmail')}>
                 <input type="email" value={form.guest_email} onChange={(e) => setForm({ ...form, guest_email: e.target.value })} className={INPUT} placeholder="maria@exemplo.pt" />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Check-in *">
+                <Field label={t('reservations.labelCheckIn')}>
                   <input type="date" value={form.check_in} onChange={(e) => setForm({ ...form, check_in: e.target.value })} className={INPUT} />
                 </Field>
-                <Field label="Check-out *">
+                <Field label={t('reservations.labelCheckOut')}>
                   <input type="date" value={form.check_out} onChange={(e) => setForm({ ...form, check_out: e.target.value })} className={INPUT} />
                 </Field>
               </div>
-              <Field label="Quarto">
+              <Field label={t('reservations.room')}>
                 <select value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} className={INPUT}>
-                  {settings.room_names.map((r) => <option key={r}>{r}</option>)}
+                  {settings.room_names.map((r) => (
+                    <option key={r} value={r}>
+                      {displayRoomLabel(r, t)}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Canal">
+                <Field label={t('reservations.channel')}>
                   <select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value as Channel })} className={INPUT}>
-                    <option value="direct">Direto</option>
-                    <option value="airbnb">Airbnb</option>
-                    <option value="booking">Booking.com</option>
+                    <option value="direct">{tChannel(t, 'direct')}</option>
+                    <option value="airbnb">{tChannel(t, 'airbnb')}</option>
+                    <option value="booking">{t('channel.bookingCom')}</option>
                   </select>
                 </Field>
-                <Field label="Estado">
+                <Field label={t('reservations.status')}>
                   <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ReservationStatus })} className={INPUT}>
-                    <option value="confirmed">Confirmada</option>
-                    <option value="pending">Pendente</option>
-                    <option value="checked_in">Check-in feito</option>
-                    <option value="checked_out">Check-out feito</option>
-                    <option value="cancelled">Cancelada</option>
+                    <option value="confirmed">{tStatus(t, 'confirmed')}</option>
+                    <option value="pending">{tStatus(t, 'pending')}</option>
+                    <option value="checked_in">{tStatus(t, 'checked_in')}</option>
+                    <option value="checked_out">{tStatus(t, 'checked_out')}</option>
+                    <option value="cancelled">{tStatus(t, 'cancelled')}</option>
                   </select>
                 </Field>
               </div>
-              <Field label="Total (€)">
+              <Field label={t('reservations.totalEur')}>
                 <input type="number" min="0" step="0.01" value={form.total_eur} onChange={(e) => setForm({ ...form, total_eur: e.target.value })} className={INPUT} placeholder="150.00" />
               </Field>
               {formError && (
@@ -1054,7 +1052,7 @@ export default function ReservationsPage() {
                 disabled={saving}
                 className="w-full bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
               >
-                {saving ? 'A guardar…' : editing ? 'Guardar alterações' : 'Criar reserva'}
+                {saving ? t('common.saving') : editing ? t('reservations.saveChanges') : t('reservations.create')}
               </button>
             </div>
           </div>
@@ -1072,48 +1070,48 @@ export default function ReservationsPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#E0DBCF]">
-              <h2 className="font-serif font-bold text-[#4A4A4A] pr-2">Fatura / resumo informativo</h2>
+              <h2 className="font-serif font-bold text-[#4A4A4A] pr-2">{t('reservations.summaryTitle')}</h2>
               <button
                 type="button"
                 onClick={() => setSummaryFor(null)}
                 className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-                aria-label="Fechar"
+                aria-label={t('common.close')}
               >
                 <X size={20} />
               </button>
             </div>
             <div className="p-4 flex-1 min-h-0 flex flex-col gap-3">
               <pre className="text-xs sm:text-sm text-[#4A4A4A] whitespace-pre-wrap break-words bg-[#FAFAF8] border border-[#E8E4DA] rounded-lg p-3 max-h-[min(22rem,45dvh)] overflow-y-auto">
-                {buildReservationSummaryText(summaryFor, settings.property_name)}
+                {buildReservationSummaryText(summaryFor, settings.property_name, t, locale)}
               </pre>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(buildReservationSummaryText(summaryFor, settings.property_name));
-                      showNotice('success', 'Texto copiado para a área de transferência.');
+                      await navigator.clipboard.writeText(buildReservationSummaryText(summaryFor, settings.property_name, t, locale));
+                      showNotice('success', t('reservations.copied'));
                     } catch {
-                      showNotice('error', 'Não foi possível copiar.');
+                      showNotice('error', t('reservations.copyFailed'));
                     }
                   }}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[#E0DBCF] bg-white px-3 py-2 text-sm font-medium text-[#4A4A4A] hover:bg-[#FFFCF6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
                 >
                   <Copy size={16} aria-hidden />
-                  Copiar texto
+                  {t('reservations.copyText')}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    const t = buildReservationSummaryText(summaryFor, settings.property_name);
+                    const text = buildReservationSummaryText(summaryFor, settings.property_name, t, locale);
                     const w = window.open('', '_blank');
                     if (!w) {
-                      showNotice('error', 'Permite janela emergente para imprimir, ou usa Copiar.');
+                      showNotice('error', t('reservations.printBlocked'));
                       return;
                     }
                     w.document.write(
-                      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Resumo reserva</title><style>body{font-family:system-ui,sans-serif;padding:1.25rem;max-width:40rem;margin:0 auto;}</style></head><body><pre style="white-space:pre-wrap;word-wrap:break-word;margin:0;">` +
-                        t
+                      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('reservations.printTitle')}</title><style>body{font-family:system-ui,sans-serif;padding:1.25rem;max-width:40rem;margin:0 auto;}</style></head><body><pre style="white-space:pre-wrap;word-wrap:break-word;margin:0;">` +
+                        text
                           .replace(/&/g, '&amp;')
                           .replace(/</g, '&lt;')
                           .replace(/>/g, '&gt;') +
@@ -1127,7 +1125,7 @@ export default function ReservationsPage() {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[#E0DBCF] bg-white px-3 py-2 text-sm font-medium text-[#4A4A4A] hover:bg-[#FFFCF6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
                 >
                   <Printer size={16} aria-hidden />
-                  Imprimir
+                  {t('reservations.print')}
                 </button>
                 <button
                   type="button"
@@ -1138,12 +1136,11 @@ export default function ReservationsPage() {
                   }}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[#708238] px-3 py-2 text-sm font-semibold text-white hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
                 >
-                  Dossiê hóspede
+                  {t('reservations.guestDossier')}
                 </button>
               </div>
               <p className="text-[10px] text-[#999]">
-                IVA e números de fatura: conforme a tua contabilidade e, para OTAs, os extratos da plataforma
-                (Airbnb, Booking, etc.). Este ecrã é apoio administrativo, não gera fatura certificada.
+                {t('reservations.summaryDisclaimer')}
               </p>
             </div>
           </div>

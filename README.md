@@ -2,7 +2,7 @@
 
 Ops panel for a small property: reservations, guests, messaging, concierge copy, and occupancy — in one place instead of Airbnb + Booking + WhatsApp + a spreadsheet.
 
-**UI is Portuguese (pt-PT).** Built around a real 3-room operation, then white-labeled so the name is an env var. Unset `NEXT_PUBLIC_SUPABASE_URL` and the app runs on mocks — no backend required.
+**UI is English by default**, with an EN|PT toggle in the sidebar. Portuguese (pt-PT) is kept as a first-class locale. Built around a real 3-room operation, then white-labeled so the name is an env var. Unset `NEXT_PUBLIC_SUPABASE_URL` and the app runs on mocks — no backend required.
 
 **[Live demo](https://hospitality-dashboard-theta.vercel.app/)** · [Architecture](#architecture) · [What is not done](#what-is-not-done)
 
@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You land on **Hoje**.
+Open [http://localhost:3000](http://localhost:3000). You land on **Today**.
 
 ## Screenshots
 

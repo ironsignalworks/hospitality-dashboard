@@ -11,11 +11,11 @@ export async function POST(request: Request) {
   try {
     ({ guestMessage, reservationId, guestId } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   if (!guestMessage) {
-    return NextResponse.json({ error: 'Mensagem obrigatória' }, { status: 400 });
+    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
 
   const r = await saveGuestMessageAndGenerateDraft({ guestMessage, reservationId, guestId });
@@ -35,11 +35,11 @@ export async function PATCH(request: Request) {
   try {
     ({ id, handled } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
   if (typeof handled !== 'boolean') {
-    return NextResponse.json({ error: 'handled (boolean) é obrigatório' }, { status: 400 });
+    return NextResponse.json({ error: 'handled (boolean) is required' }, { status: 400 });
   }
 
   const r = await setMessageHandled(id, handled);

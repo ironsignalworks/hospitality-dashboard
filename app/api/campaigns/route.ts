@@ -11,16 +11,16 @@ export async function POST(request: Request) {
   try {
     ({ subject, body, guestIds } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   if (!subject || !body) {
-    return NextResponse.json({ error: 'Assunto e corpo são obrigatórios.' }, { status: 400 });
+    return NextResponse.json({ error: 'Subject and body are required.' }, { status: 400 });
   }
 
   const r = await runCampaign({ subject, body, guestIds });
   if (r.error) {
-    const code = r.error.includes('Nenhum hóspede') ? 400 : 500;
+    const code = r.error.includes('No guests with email') ? 400 : 500;
     return NextResponse.json({ error: r.error }, { status: code });
   }
 

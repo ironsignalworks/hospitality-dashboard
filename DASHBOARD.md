@@ -1,6 +1,6 @@
 # Casa da Judiaria — painel (dashboard) · resumo
 
-Aplicação Next.js em `app/dashboard/`. Interface em português para acompanhar a casa, reservas, hóspedes, mensagens e o texto do concierge.
+Aplicação Next.js em `app/dashboard/`. Interface bilingue (inglês por omissão, português pt-PT) com alternador EN|PT na barra lateral, para acompanhar a casa, reservas, hóspedes, mensagens e o texto do concierge.
 
 ## Modo demo vs produção
 
@@ -13,8 +13,8 @@ Aplicação Next.js em `app/dashboard/`. Interface em português para acompanhar
 
 ## Navegação
 
-- **Desktop:** barra lateral com links + “Ver site público” e “Sair”.
-- **Mobile:** barra fixa no topo, **menu hamburger** (drawer com os mesmos links) e **navegação por ícones** fixa no fundo (Hoje, Reservas, Hóspedes, Mensagens, Concierge).
+- **Desktop:** barra lateral com links, **alternador de idioma EN|PT**, “Ver site público” e “Sair”.
+- **Mobile:** barra fixa no topo, **menu hamburger** (drawer com os mesmos links) e **navegação por ícones** fixa no fundo (Hoje / Today, Reservas / Reservations, Hóspedes / Guests, Mensagens / Messages, Concierge).
 
 Rutas: `/dashboard` (Hoje) · `reservations` · `guests` · `messages` · `content` · `login`.
 
