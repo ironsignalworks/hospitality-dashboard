@@ -4,6 +4,11 @@ import { demoError, readJsonObject } from '@/lib/demo-http';
 
 export type FieldIssue = { path: string; message: string };
 
+/** Method form is bivariant, so ZodEffects.safeParse type-checks. */
+type ZodParseable<T> = {
+  safeParse(data: unknown): { success: true; data: T } | { success: false; error: z.ZodError };
+};
+
 export function zodIssues(error: z.ZodError): FieldIssue[] {
   return error.issues.map((issue) => ({
     path: issue.path.map(String).join('.'),
@@ -12,7 +17,7 @@ export function zodIssues(error: z.ZodError): FieldIssue[] {
 }
 
 export function parseSchema<T>(
-  schema: z.ZodType<T>,
+  schema: ZodParseable<T>,
   data: unknown
 ): { success: true; data: T } | { success: false; issues: FieldIssue[] } {
   const result = schema.safeParse(data);
@@ -22,7 +27,7 @@ export function parseSchema<T>(
 
 export function parseDemoSchema<T>(
   request: Request,
-  schema: z.ZodType<T>,
+  schema: ZodParseable<T>,
   data: unknown
 ): T | NextResponse {
   const parsed = parseSchema(schema, data);
@@ -36,7 +41,7 @@ export function parseDemoSchema<T>(
 
 export async function readDemoSchema<T>(
   request: Request,
-  schema: z.ZodType<T>
+  schema: ZodParseable<T>
 ): Promise<T | NextResponse> {
   const raw = await readJsonObject(request);
   if (raw instanceof Response) return raw;
@@ -45,7 +50,7 @@ export async function readDemoSchema<T>(
 
 export function parseSearchParams<T>(
   request: Request,
-  schema: z.ZodType<T>,
+  schema: ZodParseable<T>,
   params: URLSearchParams
 ): T | NextResponse {
   const raw: Record<string, string> = {};

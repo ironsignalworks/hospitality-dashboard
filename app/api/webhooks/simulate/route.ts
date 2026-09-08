@@ -1,5 +1,6 @@
 import { DEFAULT_ROOM } from '@/lib/config/rooms';
 import { detectConflict } from '@/lib/domain/conflicts';
+import { mockStorage } from '@/lib/mock-storage';
 import { createDemoReservation } from '@/lib/services/demo-reservation-service';
 import { demoError, demoJson, guardDemoApi } from '@/lib/demo-http';
 import { simulateWebhookBodySchema } from '@/lib/schemas/webhooks';
