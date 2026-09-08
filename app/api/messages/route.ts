@@ -6,17 +6,31 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { IS_DEMO } from '@/lib/demo';
 import { mockStorage } from '@/lib/mock-storage';
-import { demoError, demoJson, guardDemoApi, readJsonObject } from '@/lib/demo-http';
-import type { MessageRole } from '@/lib/types';
+import { demoError, demoJson, guardDemoApi } from '@/lib/demo-http';
+import { idQuerySchema } from '@/lib/schemas/primitives';
+import {
+  messageListQuerySchema,
+  patchMessageBodySchema,
+  patchMessageProdBodySchema,
+  postGuestMessageProdSchema,
+  postMessageBodySchema,
+} from '@/lib/schemas/message';
+import {
+  parseSchema,
+  parseSearchParams,
+  readDemoSchema,
+  validationJson,
+} from '@/lib/schemas/parse';
 
 export async function GET(request: Request) {
   if (IS_DEMO) {
     const blocked = await guardDemoApi(request);
     if (blocked) return blocked;
-    const { searchParams } = new URL(request.url);
+    const query = parseSearchParams(request, messageListQuerySchema, new URL(request.url).searchParams);
+    if (query instanceof Response) return query;
     const messages = mockStorage.getMessages({
-      reservation_id: searchParams.get('reservation_id') ?? undefined,
-      guest_id: searchParams.get('guest_id') ?? undefined,
+      reservation_id: query.reservation_id,
+      guest_id: query.guest_id,
     });
     return demoJson(request, { data: messages }, { cache: true });
   }
@@ -36,37 +50,22 @@ export async function POST(request: Request) {
   if (IS_DEMO) {
     const blocked = await guardDemoApi(request);
     if (blocked) return blocked;
-    const body = await readJsonObject(request);
+    const body = await readDemoSchema(request, postMessageBodySchema);
     if (body instanceof Response) return body;
 
-    const guestMessage = typeof body.guestMessage === 'string' ? body.guestMessage.trim() : '';
-    const ownerBody = typeof body.body === 'string' ? body.body.trim() : '';
-    const reservationId =
-      typeof body.reservationId === 'string'
-        ? body.reservationId
-        : typeof body.reservation_id === 'string'
-          ? body.reservation_id
-          : null;
-    const guestId =
-      typeof body.guestId === 'string'
-        ? body.guestId
-        : typeof body.guest_id === 'string'
-          ? body.guest_id
-          : null;
-
-    if (guestMessage) {
+    if (body.guestMessage) {
       const saved = mockStorage.createMessage({
-        reservation_id: reservationId,
-        guest_id: guestId,
-        body: guestMessage,
+        reservation_id: body.reservation_id,
+        guest_id: body.guest_id,
+        body: body.guestMessage,
         role: 'guest',
         handled: false,
         scheduled_at: null,
       });
       const draft = `Thanks for your message — we'll get back to you shortly.`;
       mockStorage.createMessage({
-        reservation_id: reservationId,
-        guest_id: guestId,
+        reservation_id: body.reservation_id,
+        guest_id: body.guest_id,
         body: draft,
         role: 'ai',
         handled: false,
@@ -75,34 +74,31 @@ export async function POST(request: Request) {
       return demoJson(request, { ok: true, messageId: saved.id, aiDraft: draft, data: saved });
     }
 
-    if (!ownerBody) {
-      return demoError(request, 'Message is required', 'VALIDATION_ERROR', 400);
-    }
-    const role: MessageRole = body.role === 'ai' || body.role === 'guest' ? body.role : 'owner';
-    const scheduled_at = typeof body.scheduled_at === 'string' ? body.scheduled_at : null;
     const saved = mockStorage.createMessage({
-      reservation_id: reservationId,
-      guest_id: guestId,
-      body: ownerBody,
-      role,
-      handled: role !== 'guest',
-      scheduled_at,
+      reservation_id: body.reservation_id,
+      guest_id: body.guest_id,
+      body: body.body,
+      role: body.role ?? 'owner',
+      handled: (body.role ?? 'owner') !== 'guest',
+      scheduled_at: body.scheduled_at,
     });
     return demoJson(request, { ok: true, data: saved });
   }
 
-  let guestMessage: string, reservationId: string | undefined, guestId: string | undefined;
+  let raw: unknown;
   try {
-    ({ guestMessage, reservationId, guestId } = await request.json());
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  const parsed = parseSchema(postGuestMessageProdSchema, raw);
+  if (!parsed.success) return validationJson(parsed.issues);
 
-  if (!guestMessage) {
-    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
-  }
-
-  const r = await saveGuestMessageAndGenerateDraft({ guestMessage, reservationId, guestId });
+  const r = await saveGuestMessageAndGenerateDraft({
+    guestMessage: parsed.data.guestMessage,
+    reservationId: parsed.data.reservationId,
+    guestId: parsed.data.guestId,
+  });
   if (r.error) {
     return NextResponse.json({ error: r.error }, { status: 500 });
   }
@@ -113,12 +109,12 @@ export async function PATCH(request: Request) {
   if (IS_DEMO) {
     const blocked = await guardDemoApi(request);
     if (blocked) return blocked;
-    const body = await readJsonObject(request);
+    const body = await readDemoSchema(request, patchMessageBodySchema);
     if (body instanceof Response) return body;
-    const id = typeof body.id === 'string' ? body.id : '';
-    if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
-    const handled = typeof body.handled === 'boolean' ? body.handled : undefined;
-    const updated = mockStorage.updateMessage(id, handled !== undefined ? { handled } : {});
+    const updated = mockStorage.updateMessage(
+      body.id,
+      body.handled !== undefined ? { handled: body.handled } : {}
+    );
     if (!updated) return demoError(request, 'Message not found', 'NOT_FOUND', 404);
     return demoJson(request, { ok: true, data: updated });
   }
@@ -127,18 +123,16 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let id: string, handled: boolean | undefined;
+  let raw: unknown;
   try {
-    ({ id, handled } = await request.json());
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
-  if (typeof handled !== 'boolean') {
-    return NextResponse.json({ error: 'handled (boolean) is required' }, { status: 400 });
-  }
+  const parsed = parseSchema(patchMessageProdBodySchema, raw);
+  if (!parsed.success) return validationJson(parsed.issues);
 
-  const r = await setMessageHandled(id, handled);
+  const r = await setMessageHandled(parsed.data.id, parsed.data.handled);
   if (r.error) return NextResponse.json({ error: r.error }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
@@ -149,9 +143,9 @@ export async function DELETE(request: Request) {
   }
   const blocked = await guardDemoApi(request);
   if (blocked) return blocked;
-  const id = new URL(request.url).searchParams.get('id');
-  if (!id) return demoError(request, 'id is required', 'VALIDATION_ERROR', 400);
-  const ok = mockStorage.deleteMessage(id);
+  const parsed = parseSearchParams(request, idQuerySchema, new URL(request.url).searchParams);
+  if (parsed instanceof Response) return parsed;
+  const ok = mockStorage.deleteMessage(parsed.id);
   if (!ok) return demoError(request, 'Message not found', 'NOT_FOUND', 404);
   return demoJson(request, { ok: true });
 }

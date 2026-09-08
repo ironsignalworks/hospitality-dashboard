@@ -14,8 +14,14 @@ function datesOverlap(a: StayInterval, b: StayInterval): boolean {
   return a.check_in < b.check_out && b.check_in < a.check_out;
 }
 
+function roomKey(room: string): string {
+  return room.trim();
+}
+
 export function detectConflict(candidate: StayInterval, existing: StayInterval[]): StayInterval[] {
+  const candidateRoom = roomKey(candidate.room);
   return existing.filter(
-    (stay) => stay.room === candidate.room && occupiesRoom(stay) && datesOverlap(candidate, stay)
+    (stay) =>
+      roomKey(stay.room) === candidateRoom && occupiesRoom(stay) && datesOverlap(candidate, stay)
   );
 }

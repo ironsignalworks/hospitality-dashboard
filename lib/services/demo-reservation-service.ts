@@ -1,6 +1,12 @@
 import { detectConflict } from '@/lib/domain/conflicts';
 import { mockStorage, parseChannel, parseStatus } from '@/lib/mock-storage';
+import { DEFAULT_ROOM } from '@/lib/config/rooms';
 import type { Guest, Reservation } from '@/lib/types';
+
+function roomKeyOrFallback(room: string | undefined, fallback: string): string {
+  const key = room?.trim() ?? '';
+  return key || fallback;
+}
 
 export type DemoReservationInput = {
   guest_id?: string | null;
@@ -33,8 +39,9 @@ export function createDemoReservation(input: DemoReservationInput): {
   if (input.check_in >= input.check_out) {
     return { error: 'Check-out must be after check-in.' };
   }
+  const room = roomKeyOrFallback(input.room, DEFAULT_ROOM);
   const conflicts = conflictsFor({
-    room: input.room,
+    room,
     check_in: input.check_in,
     check_out: input.check_out,
   });
@@ -69,7 +76,7 @@ export function createDemoReservation(input: DemoReservationInput): {
 
   const reservation = mockStorage.createReservation({
     guest_id: guest.id,
-    room: input.room,
+    room,
     check_in: input.check_in,
     check_out: input.check_out,
     channel: parseChannel(input.channel),
@@ -93,7 +100,10 @@ export function updateDemoReservation(
   const existing = mockStorage.getReservation(id);
   if (!existing) return { error: 'Reservation not found' };
 
-  const room = input.room ?? existing.room;
+  if (input.room !== undefined && !input.room.trim()) {
+    return { error: 'Room is required.' };
+  }
+  const room = roomKeyOrFallback(input.room, existing.room.trim() || DEFAULT_ROOM);
   const check_in = input.check_in ?? existing.check_in;
   const check_out = input.check_out ?? existing.check_out;
   if (check_in >= check_out) {
