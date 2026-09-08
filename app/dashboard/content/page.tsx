@@ -4,20 +4,22 @@ import { useEffect, useState } from 'react';
 import { IS_DEMO, MOCK_CONTENT } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import { Save, ExternalLink, Loader2, CheckCircle } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
-const FIELDS: Array<{ key: string; label: string; hint: string; multiline?: boolean }> = [
-  { key: 'wifi_ssid',           label: 'Wi-Fi — Nome da rede (SSID)', hint: 'O nome que aparece na lista de redes.' },
-  { key: 'wifi_pass',           label: 'Wi-Fi — Password', hint: 'Deixa em branco se não tiver password.' },
-  { key: 'checkin_instructions', label: 'Instruções de check-in', hint: 'Como chegar, caixa de chaves, código…', multiline: true },
-  { key: 'checkout_instructions', label: 'Instruções de check-out', hint: 'Onde deixar as chaves, o que fazer antes de sair…', multiline: true },
-  { key: 'breakfast',           label: 'Pequeno-almoço', hint: 'Incluído ou sugestões de cafés próximos.', multiline: true },
-  { key: 'tips',                label: 'Dicas da zona', hint: 'Miradouros, restaurantes, caminhadas favoritas…', multiline: true },
-  { key: 'parking',             label: 'Estacionamento', hint: 'Onde estacionar, se é pago ou gratuito.' },
+const FIELD_KEYS: Array<{ key: string; labelKey: string; hintKey: string; multiline?: boolean }> = [
+  { key: 'wifi_ssid', labelKey: 'content.wifiSsid', hintKey: 'content.wifiSsidHint' },
+  { key: 'wifi_pass', labelKey: 'content.wifiPass', hintKey: 'content.wifiPassHint' },
+  { key: 'checkin_instructions', labelKey: 'content.checkin', hintKey: 'content.checkinHint', multiline: true },
+  { key: 'checkout_instructions', labelKey: 'content.checkout', hintKey: 'content.checkoutHint', multiline: true },
+  { key: 'breakfast', labelKey: 'content.breakfast', hintKey: 'content.breakfastHint', multiline: true },
+  { key: 'tips', labelKey: 'content.tips', hintKey: 'content.tipsHint', multiline: true },
+  { key: 'parking', labelKey: 'content.parking', hintKey: 'content.parkingHint' },
 ];
 
 type ContentMap = Record<string, string>;
 
 export default function ContentPage() {
+  const t = useT();
   const supabase = IS_DEMO ? null : createClient();
   const [content, setContent] = useState<ContentMap>({});
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ export default function ContentPage() {
       .upsert(upserts, { onConflict: 'key' });
 
     if (upsertError) {
-      setError('Erro ao guardar. Por favor tente novamente.');
+      setError(t('content.saveError'));
     } else {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -85,28 +87,28 @@ export default function ContentPage() {
   return (
     <div className="p-6 lg:p-8 pb-16 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">Concierge digital</h1>
+        <h1 className="text-2xl font-serif font-bold text-[#4A4A4A]">{t('content.title')}</h1>
         <p className="text-sm text-[#888] mt-1">
-          Edita as informações que os hóspedes veem no telemóvel. Guarda e as mudanças ficam imediatas.
+          {t('content.subtitle')}
         </p>
         <p className="text-xs text-[#888] mt-1">
-          Base de conhecimento central para automatizar respostas e reduzir tarefas repetitivas.
+          {t('content.blurb')}
         </p>
       </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-[#888] text-sm">
           <Loader2 size={16} className="animate-spin" aria-hidden />
-          A carregar…
+          {t('common.loading')}
         </div>
       ) : (
         <div className="space-y-6">
-          {FIELDS.map(({ key, label, hint, multiline }) => (
+          {FIELD_KEYS.map(({ key, labelKey, hintKey, multiline }) => (
             <div key={key}>
               <label className="block text-sm font-semibold text-[#4A4A4A] mb-1">
-                {label}
+                {t(labelKey)}
               </label>
-              <p className="text-xs text-[#888] mb-2">{hint}</p>
+              <p className="text-xs text-[#888] mb-2">{t(hintKey)}</p>
               {multiline ? (
                 <textarea
                   value={content[key] ?? ''}
@@ -139,11 +141,11 @@ export default function ContentPage() {
               className="flex items-center gap-2 bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
             >
               {saving ? (
-                <><Loader2 size={15} className="animate-spin" aria-hidden /> A guardar…</>
+                <><Loader2 size={15} className="animate-spin" aria-hidden /> {t('common.saving')}</>
               ) : saved ? (
-                <><CheckCircle size={15} aria-hidden /> Guardado!</>
+                <><CheckCircle size={15} aria-hidden /> {t('common.savedExclaim')}</>
               ) : (
-                <><Save size={15} aria-hidden /> Guardar alterações</>
+                <><Save size={15} aria-hidden /> {t('content.saveChanges')}</>
               )}
             </button>
 
@@ -154,7 +156,7 @@ export default function ContentPage() {
               className="flex items-center gap-1.5 text-sm text-[#888] hover:text-[#4A4A4A] transition-colors focus:outline-none focus-visible:underline"
             >
               <ExternalLink size={14} aria-hidden />
-              Pré-visualizar página do hóspede
+              {t('content.preview')}
             </a>
           </div>
         </div>

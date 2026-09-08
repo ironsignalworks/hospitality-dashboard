@@ -20,11 +20,11 @@ import {
   BarChart2,
   Download,
   FileSpreadsheet,
-  Loader2,
   ArrowLeft,
   FileText,
 } from 'lucide-react';
-import { IS_DEMO, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
+import { useReservationsApi } from '@/lib/hooks/use-demo-api';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { createClient } from '@/lib/supabase';
 import type { Reservation, Channel } from '@/lib/types';
@@ -43,38 +43,65 @@ import {
 import { downloadOccupancyPdf } from '@/lib/occupancy-pdf';
 import { downloadOccupancyTableExcel } from '@/lib/occupancy-csv';
 import { downloadOccupancyXlsx } from '@/lib/occupancy-xlsx';
+import { useLocale, tChannel, displayRoomLabel } from '@/lib/i18n';
+import type { OccupancyTableHeaders } from '@/lib/occupancy-csv';
+import type { TFunction } from '@/lib/i18n/translate';
 
 
-const CHANNEL_OPTIONS: { id: 'all' | Channel; label: string }[] = [
-  { id: 'all', label: 'Todos' },
-  { id: 'airbnb', label: 'Airbnb' },
-  { id: 'booking', label: 'Booking' },
-  { id: 'direct', label: 'Direto' },
+const CHANNEL_IDS: { id: 'all' | Channel }[] = [
+  { id: 'all' },
+  { id: 'airbnb' },
+  { id: 'booking' },
+  { id: 'direct' },
 ];
 
-const STAY_SCOPE: { id: StayScope; label: string; hint: string }[] = [
-  { id: 'all', label: 'Todas as reservas', hint: 'Inclui estadias futuras no filtro' },
-  { id: 'no_future', label: 'Sem reservas futuras', hint: 'Só com check-in já acontecido' },
-  { id: 'only_ended', label: 'Apenas estadias concluídas', hint: 'Só com check-out já concluído' },
-];
+const STAY_SCOPE_IDS: StayScope[] = ['all', 'no_future', 'only_ended'];
 
 const PIE_COLORS = ['#FF5A5F', '#003580', '#708238'] as const;
 const PIE_SWATCH = ['bg-[#FF5A5F]', 'bg-[#003580]', 'bg-[#708238]'] as const;
 
-const CHANNEL_PIE_LABEL: Record<Channel, string> = {
-  airbnb: 'Airbnb',
-  booking: 'Booking',
-  direct: 'Direto',
-};
-
-const STAY_PDF: Record<StayScope, string> = {
-  all: 'Todas',
-  no_future: 'Sem check-in futuro',
-  only_ended: 'So estadias terminadas',
-};
-
 const INPUT =
   'rounded-lg border border-[#E0DBCF] bg-white px-2.5 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520]';
+
+function channelOptionLabel(t: TFunction, id: 'all' | Channel) {
+  if (id === 'all') return t('common.all');
+  return tChannel(t, id);
+}
+
+function stayScopeLabel(t: TFunction, id: StayScope) {
+  if (id === 'all') return t('occupancy.stayAll');
+  if (id === 'no_future') return t('occupancy.stayNoFuture');
+  return t('occupancy.stayEnded');
+}
+
+function stayScopeHint(t: TFunction, id: StayScope) {
+  if (id === 'all') return t('occupancy.stayAllHint');
+  if (id === 'no_future') return t('occupancy.stayNoFutureHint');
+  return t('occupancy.stayEndedHint');
+}
+
+function stayPdfLabel(t: TFunction, id: StayScope) {
+  if (id === 'all') return t('occupancy.pdfStayAll');
+  if (id === 'no_future') return t('occupancy.pdfStayNoFuture');
+  return t('occupancy.pdfStayEnded');
+}
+
+function occupancyTableHeaders(t: TFunction): OccupancyTableHeaders {
+  return [
+    t('occupancyExport.monthKey'),
+    t('occupancyExport.label'),
+    t('occupancyExport.nights'),
+    t('occupancyExport.revenue'),
+    t('occupancyExport.occupancy'),
+    t('occupancyExport.adr'),
+    t('occupancyExport.revpar'),
+    t('occupancyExport.daysInMonth'),
+    t('occupancyExport.occPrev'),
+    t('occupancyExport.revPrev'),
+    t('occupancyExport.yoyOcc'),
+    t('occupancyExport.yoyRev'),
+  ];
+}
 
 function ChannelPieTooltip({
   active,
@@ -85,6 +112,7 @@ function ChannelPieTooltip({
   payload?: readonly { payload: { channel: string; receita: number; noites: number } }[];
   byReceita: boolean;
 }) {
+  const t = useLocale().t;
   if (!active || !payload?.length) return null;
   const item = payload[0];
   const p = item.payload as {
@@ -92,31 +120,30 @@ function ChannelPieTooltip({
     receita: number;
     noites: number;
   };
-  const c = p.channel as Channel;
-  const name = CHANNEL_PIE_LABEL[c] ?? p.channel;
+  const name = tChannel(t, p.channel);
   return (
     <div className="max-w-xs rounded-xl border border-[#E0DBCF] bg-white px-2.5 py-2 text-left text-xs leading-snug text-[#333] shadow-sm">
       {byReceita ? (
         <>
-          <p className="text-[#888]">Origem da receita</p>
+          <p className="text-[#888]">{t('occupancy.pieTooltipRevenue')}</p>
           <p className="font-serif font-semibold text-[#4A4A4A]">{name}</p>
           <p className="mt-1">
-            <span className="text-[#888]">Receita: </span>
+            <span className="text-[#888]">{t('occupancy.pieRevenueLabel')}</span>
             <span className="font-medium tabular-nums text-[#333]">{p.receita.toFixed(2)} €</span>
           </p>
         </>
       ) : (
         <>
-          <p className="text-[#888]">Canal (série por noite)</p>
+          <p className="text-[#888]">{t('occupancy.pieTooltipChannel')}</p>
           <p className="font-serif font-semibold text-[#4A4A4A]">{name}</p>
           <p className="mt-1">
-            <span className="text-[#888]">Noites: </span>
+            <span className="text-[#888]">{t('occupancy.pieNightsLabel')}</span>
             <span className="font-medium tabular-nums text-[#333]">
               {p.noites % 1 === 0 ? p.noites : p.noites.toFixed(1)}
             </span>
           </p>
           <p className="mt-0.5 text-[#999]">
-            <span>Receita: </span>
+            <span>{t('occupancy.pieRevenueLabel')}</span>
             {p.receita > 0.005 ? (
               <span className="tabular-nums text-[#666]">{p.receita.toFixed(2)} €</span>
             ) : (
@@ -155,6 +182,7 @@ function OccupancySkeleton() {
 
 export function OccupancyDashboard() {
   const settings = useSettings();
+  const { locale, t } = useLocale();
   const def = defaultDateRange();
   const [from, setFrom] = useState(def.from);
   const [to, setTo] = useState(def.to);
@@ -163,9 +191,13 @@ export function OccupancyDashboard() {
   const [includeCancelled, setIncludeCancelled] = useState(false);
   const [stayScope, setStayScope] = useState<StayScope>('all');
   const [roomCount, setRoomCount] = useState(DEFAULT_ROOM_COUNT);
-  const [list, setList] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const demoApi = useReservationsApi(IS_DEMO);
+  const [prodList, setProdList] = useState<Reservation[]>([]);
+  const [prodLoading, setProdLoading] = useState(!IS_DEMO);
+  const [prodErr, setProdErr] = useState<string | null>(null);
+  const list = IS_DEMO ? demoApi.data : prodList;
+  const loading = IS_DEMO ? demoApi.loading : prodLoading;
+  const err = IS_DEMO ? (demoApi.error ? t('occupancy.loadError') : null) : prodErr;
 
   const [todayStr, setTodayStr] = useState(() => toIso(new Date()));
   useEffect(() => {
@@ -173,16 +205,12 @@ export function OccupancyDashboard() {
   }, []);
 
   useEffect(() => {
+    if (IS_DEMO) return;
     let c = true;
     async function load() {
-      setLoading(true);
-      setErr(null);
+      setProdLoading(true);
+      setProdErr(null);
       try {
-        if (IS_DEMO) {
-          if (!c) return;
-          setList(MOCK_RESERVATIONS.map((r) => ({ ...r })));
-          return;
-        }
         const supabase = createClient();
         const { data, error } = await supabase
           .from('reservations')
@@ -190,18 +218,18 @@ export function OccupancyDashboard() {
           .order('check_in', { ascending: true });
         if (error) throw new Error(error.message);
         if (!c) return;
-        setList((data as Reservation[]) ?? []);
+        setProdList((data as Reservation[]) ?? []);
       } catch (e) {
-        if (c) setErr(e instanceof Error ? e.message : 'Erro a carregar reservas.');
+        if (c) setProdErr(e instanceof Error ? e.message : t('occupancy.loadError'));
       } finally {
-        if (c) setLoading(false);
+        if (c) setProdLoading(false);
       }
     }
     void load();
     return () => {
       c = false;
     };
-  }, []);
+  }, [t]);
 
   const yoyFilter = useMemo(
     () => ({
@@ -222,9 +250,9 @@ export function OccupancyDashboard() {
   const effectiveRoomCount = room === 'all' ? roomCount : 1;
 
   const monthRows = useMemo(() => {
-    const base = buildMonthlyStats(filtered, from, to, effectiveRoomCount);
+    const base = buildMonthlyStats(filtered, from, to, effectiveRoomCount, locale);
     return attachYearOverYear(base, list, from, to, effectiveRoomCount, yoyFilter);
-  }, [filtered, list, from, to, effectiveRoomCount, yoyFilter]);
+  }, [filtered, list, from, to, effectiveRoomCount, yoyFilter, locale]);
 
   const summary = useMemo(
     () => summarizePeriod(monthRows, effectiveRoomCount),
@@ -238,14 +266,13 @@ export function OccupancyDashboard() {
   /** Texto do cartão de antecedência: sem jargão técnico. */
   const leadTimeKpiValue = useMemo(() => {
     if (lead.n > 0 && lead.mean != null) {
-      return `${lead.mean} dias · ${lead.n} reservas`;
+      return t('occupancy.kpiLeadValue', { mean: lead.mean, n: lead.n });
     }
     if (summary.totalNights === 0) {
-      return 'Sem dados no período';
+      return t('occupancy.kpiLeadEmpty');
     }
-    // Há estadias no filtro, mas faltam datas de registo nas reservas
-    return 'Não calculável com os dados atuais';
-  }, [lead, summary.totalNights]);
+    return t('occupancy.kpiLeadMissing');
+  }, [lead, summary.totalNights, t]);
 
   const pieData = useMemo(
     () => byChannel.filter((x) => x.noites > 0 || x.receita > 0),
@@ -277,30 +304,77 @@ export function OccupancyDashboard() {
   }, []);
 
   const handleDownloadPdf = useCallback(() => {
+    const headers = t('occupancyExport.pdfHeaders').split(',');
     downloadOccupancyPdf({
-      from,
-      to,
-      propertyName: settings.property_name,
-      roomCount: effectiveRoomCount,
-      channel: CHANNEL_OPTIONS.find((c) => c.id === channel)?.label ?? 'Todos',
-      room: room === 'all' ? 'Todos' : room,
-      includeCancelled,
-      stayScopeLabel: STAY_PDF[stayScope],
       monthRows,
-      byChannel: byChannel.map((b) => ({ ...b })),
-      leadTimeMean: lead.mean,
-      leadTimeN: lead.n,
-      receitaMissingSharePct: gaps.missingSharePct,
+      byChannel: byChannel.map((b) => ({
+        ...b,
+        channel: tChannel(t, b.channel),
+      })),
+      copy: {
+        title: t('occupancyExport.pdfTitle', { property: settings.property_name }),
+        period: t('occupancyExport.pdfPeriod', { from, to }),
+        filters: t('occupancyExport.pdfFilters', {
+          channel: channelOptionLabel(t, channel),
+          room: room === 'all' ? t('common.all') : room,
+          stay: stayPdfLabel(t, stayScope),
+          cancelled: includeCancelled ? t('occupancyExport.cancelledIncl') : t('occupancyExport.cancelledExcl'),
+          rooms: effectiveRoomCount,
+        }),
+        warn:
+          gaps.missingSharePct > 0
+            ? t('occupancyExport.pdfWarn', { pct: gaps.missingSharePct })
+            : null,
+        lead:
+          lead.n > 0 && lead.mean != null
+            ? t('occupancyExport.pdfLead', { days: lead.mean, n: lead.n })
+            : null,
+        totals: t('occupancyExport.pdfTotals', {
+          nights: summary.totalNights,
+          rev: summary.totalReceita.toFixed(2),
+          occ: summary.ocupacaoGeral,
+          adr: summary.adrGeral,
+          revpar: summary.revparGeral,
+        }),
+        tableHeaders: headers,
+        byChannelHeading: t('occupancyExport.pdfByChannel'),
+        channelLine: (ch, nights, rev) =>
+          t('occupancyExport.pdfChannelLine', { channel: ch, nights, rev }),
+        footer: t('occupancyExport.pdfFooter'),
+        filename: t('occupancyExport.pdfName', { from }),
+      },
     });
-  }, [byChannel, channel, from, includeCancelled, monthRows, room, to, effectiveRoomCount, stayScope, lead, gaps, settings]);
+  }, [
+    byChannel,
+    channel,
+    from,
+    includeCancelled,
+    monthRows,
+    room,
+    to,
+    effectiveRoomCount,
+    stayScope,
+    lead,
+    gaps,
+    settings,
+    t,
+    summary,
+  ]);
 
   const handleDownloadTableExcel = useCallback(() => {
-    downloadOccupancyTableExcel(from, to, monthRows);
-  }, [from, to, monthRows]);
+    downloadOccupancyTableExcel(from, to, monthRows, {
+      headers: occupancyTableHeaders(t),
+      filename: t('occupancyExport.csvName', { from, to }),
+    });
+  }, [from, to, monthRows, t]);
 
   const handleDownloadXlsx = useCallback(() => {
-    downloadOccupancyXlsx(from, to, monthRows);
-  }, [from, to, monthRows]);
+    downloadOccupancyXlsx(from, to, monthRows, {
+      headers: occupancyTableHeaders(t),
+      sheetName: t('occupancy.sheetName'),
+      filename: t('occupancyExport.xlsxName', { from, to }),
+    });
+  }, [from, to, monthRows, t]);
 
   const pieKey = useMemo(
     () => `pie-${from}-${to}-${channel}-${room}-${includeCancelled}-${stayScope}`,
@@ -336,13 +410,13 @@ export function OccupancyDashboard() {
             className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-[#888] transition-colors hover:text-[#B8860B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] rounded"
           >
             <ArrowLeft size={14} aria-hidden />
-            Hoje
+            {t('nav.today')}
           </Link>
           <h1 className="font-serif text-2xl font-bold text-[#4A4A4A] sm:text-3xl">
-            Histórico de ocupação
+            {t('occupancy.title')}
           </h1>
           <p className="mt-1 text-sm text-[#888]">
-            Ocupação, receita, ADR, RevPAR, YoY, antecedência e export (CSV, XLSX, PDF).
+            {t('occupancy.subtitle')}
           </p>
         </div>
         <button
@@ -352,50 +426,38 @@ export function OccupancyDashboard() {
           className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl border border-[#E0DBCF] bg-white px-4 py-2.5 text-sm font-semibold text-[#4A4A4A] shadow-sm transition hover:border-[#DAA520] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download size={16} aria-hidden />
-          PDF (relatório)
+          {t('occupancy.pdfReport')}
         </button>
       </div>
 
       <details className="group rounded-2xl border border-[#DAA520]/40 bg-[#FFFCF6] p-4 sm:p-5 open:bg-[#FFFCF6]">
         <summary className="cursor-pointer list-none text-sm font-semibold text-[#4A4A4A] [&::-webkit-details-marker]:hidden">
-          <span className="underline decoration-[#DAA520]/50 underline-offset-2">Como interpretar a ocupação?</span>
-          <span className="ml-2 text-xs font-normal text-[#888]">(clicar para expandir)</span>
+          <span className="underline decoration-[#DAA520]/50 underline-offset-2">{t('occupancy.howTitle')}</span>
+          <span className="ml-2 text-xs font-normal text-[#888]">{t('occupancy.howExpand')}</span>
         </summary>
         <div className="mt-3 space-y-2 text-sm leading-relaxed text-[#555]">
-          <p>
-            <strong>Ocupação % (mês):</strong> noites alugadas no mês (no teu filtro) ÷ (dias do mês ×
-            n.º de quartos de capacidade). <strong>Exemplo:</strong> 3 quartos e 30 dias = 90 noites
-            possíveis; 45 noites vendidas → 50%.
-          </p>
-          <p>
-            <strong>RevPAR (€/noite de capacidade):</strong> receita atribuída ao mês (pro-rata) ÷
-            (dias do mês × quartos), igual à receita por &quot;noite disponível&quot; da unidade.{' '}
-            <strong>ADR:</strong> receita ÷ noites de estadia, tarifa média.
-          </p>
-          <p>
-            <strong>YoY:</strong> o mesmo mês de calendário no <strong>ano homólogo</strong> (mesma
-            lógica de filtro) para a linha a tracejado. Se não houver reservas nessa janela no ano
-            anterior, a série pode ter um vazio.
-          </p>
+          <p>{t('occupancy.howP1')}</p>
+          <p>{t('occupancy.howP2')}</p>
+          <p>{t('occupancy.howP3')}</p>
         </div>
       </details>
 
       <section
         className="rounded-2xl border border-[#E0DBCF] bg-white p-4 shadow-sm sm:p-5"
-        aria-label="Filtros e capacidade"
+        aria-label={t('occupancy.filtersAria')}
       >
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#4A4A4A]">
           <BarChart2 className="text-[#DAA520]" size={18} aria-hidden />
-          Categorias e intervalo
+          {t('occupancy.categories')}
         </div>
         <div className="flex flex-wrap gap-2 pb-2">
-          <span className="text-xs font-medium text-[#888]">Rápido:</span>
+          <span className="text-xs font-medium text-[#888]">{t('occupancy.quick')}</span>
           {(
             [
-              { id: '3m' as const, label: '3 meses' },
-              { id: '6m' as const, label: '6 meses' },
-              { id: '12m' as const, label: '12 meses' },
-              { id: 'ytd' as const, label: 'Desde 1 Jan' },
+              { id: '3m' as const, labelKey: 'occupancy.preset3m' },
+              { id: '6m' as const, labelKey: 'occupancy.preset6m' },
+              { id: '12m' as const, labelKey: 'occupancy.preset12m' },
+              { id: 'ytd' as const, labelKey: 'occupancy.presetYtd' },
             ] as const
           ).map((p) => (
             <button
@@ -404,13 +466,13 @@ export function OccupancyDashboard() {
               onClick={() => applyPreset(p.id)}
               className="rounded-lg border border-[#E0DBCF] bg-[#FFFCF6] px-2.5 py-1 text-xs font-medium text-[#4A4A4A] transition hover:border-[#DAA520] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
             >
-              {p.label}
+              {t(p.labelKey)}
             </button>
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-xs">
-            <span className="mb-1 block font-medium text-[#666]">Desde</span>
+            <span className="mb-1 block font-medium text-[#666]">{t('occupancy.from')}</span>
             <input
               type="date"
               value={from}
@@ -419,7 +481,7 @@ export function OccupancyDashboard() {
             />
           </label>
           <label className="block text-xs">
-            <span className="mb-1 block font-medium text-[#666]">Até</span>
+            <span className="mb-1 block font-medium text-[#666]">{t('occupancy.to')}</span>
             <input
               type="date"
               value={to}
@@ -428,30 +490,30 @@ export function OccupancyDashboard() {
             />
           </label>
           <label className="block text-xs">
-            <span className="mb-1 block font-medium text-[#666]">Canal</span>
+            <span className="mb-1 block font-medium text-[#666]">{t('occupancy.channel')}</span>
             <select
               value={channel}
               onChange={(e) => setChannel(e.target.value as 'all' | Channel)}
               className={INPUT + ' w-full'}
             >
-              {CHANNEL_OPTIONS.map((c) => (
+              {CHANNEL_IDS.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.label}
+                  {channelOptionLabel(t, c.id)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block text-xs">
-            <span className="mb-1 block font-medium text-[#666]">Quarto</span>
+            <span className="mb-1 block font-medium text-[#666]">{t('occupancy.room')}</span>
             <select
               value={room}
               onChange={(e) => setRoom(e.target.value as 'all' | string)}
               className={INPUT + ' w-full'}
             >
-              <option value="all">Todos os quartos (agregado)</option>
+              <option value="all">{t('occupancy.allRooms')}</option>
               {settings.room_names.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {displayRoomLabel(r, t)}
                 </option>
               ))}
             </select>
@@ -459,21 +521,21 @@ export function OccupancyDashboard() {
         </div>
         <div className="mt-3">
           <label className="block text-xs" htmlFor="ocup-stay">
-            <span className="mb-1 block font-medium text-[#666]">Escopo de estadias (ref.: hoje)</span>
+            <span className="mb-1 block font-medium text-[#666]">{t('occupancy.stayScope')}</span>
             <select
               id="ocup-stay"
               value={stayScope}
               onChange={(e) => setStayScope(e.target.value as StayScope)}
               className={INPUT + ' w-full sm:max-w-md'}
             >
-              {STAY_SCOPE.map((o) => (
-                <option key={o.id} value={o.id} title={o.hint}>
-                  {o.label}
+              {STAY_SCOPE_IDS.map((id) => (
+                <option key={id} value={id} title={stayScopeHint(t, id)}>
+                  {stayScopeLabel(t, id)}
                 </option>
               ))}
             </select>
             <p className="mt-0.5 text-[11px] text-[#999]">
-              {STAY_SCOPE.find((s) => s.id === stayScope)?.hint}
+              {stayScopeHint(t, stayScope)}
             </p>
           </label>
         </div>
@@ -485,10 +547,10 @@ export function OccupancyDashboard() {
               onChange={(e) => setIncludeCancelled(e.target.checked)}
               className="size-4 rounded border-[#E0DBCF] text-[#DAA520] focus:ring-[#DAA520]"
             />
-            Incluir reservas canceladas
+            {t('occupancy.includeCancelled')}
           </label>
           <label className="flex items-center gap-2 text-sm text-[#4A4A4A]">
-            <span className="whitespace-nowrap">Quartos (cap.):</span>
+            <span className="whitespace-nowrap">{t('occupancy.roomsCap')}</span>
             <input
               type="number"
               min={1}
@@ -501,12 +563,11 @@ export function OccupancyDashboard() {
         </div>
         {room !== 'all' && (
           <p className="mt-3 text-xs text-[#888]">
-            Filtro por um quarto: 100% = noites desse quarto. Com &quot;Todos os quartos&quot; usa
-            a capacidade acima.
+            {t('occupancy.roomFilterHint')}
           </p>
         )}
         {includeCancelled && (
-          <p className="mt-1 text-xs text-amber-800">Canceladas: 0 noites; receita não entra no total.</p>
+          <p className="mt-1 text-xs text-amber-800">{t('occupancy.cancelledNote')}</p>
         )}
       </section>
 
@@ -518,7 +579,7 @@ export function OccupancyDashboard() {
 
       {loading ? (
         <div className="min-h-[200px] space-y-2" aria-busy>
-          <p className="text-center text-sm text-[#888]">A carregar reservas…</p>
+          <p className="text-center text-sm text-[#888]">{t('occupancy.loadingReservations')}</p>
           <OccupancySkeleton />
         </div>
       ) : (
@@ -528,28 +589,22 @@ export function OccupancyDashboard() {
               className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950"
               role="status"
             >
-              <strong>Aviso (qualidade de dados):</strong> {gaps.missingSharePct}% das reservas com
-              noites têm <strong>receita nula</strong> (OTAs/calendário) — <strong>ADR, RevPAR e
-              gráfico</strong> de receita podem estar <strong>subestimados</strong>. Completar totais
-              em Reservas.
+              {t('occupancy.qualityWarn', { pct: gaps.missingSharePct })}
             </div>
           )}
 
           <section
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-            aria-label="Totais do periodo selecionado"
+            aria-label={t('occupancy.kpisAria')}
           >
             {(
               [
-                { k: 'Ocupação (período)', v: `${summary.ocupacaoGeral} %` },
-                { k: 'Noites (filtro)', v: String(summary.totalNights) },
-                { k: 'Receita (pro-rata no período)', v: `€${summary.totalReceita.toFixed(0)}` },
-                { k: 'ADR (tarifa média / noite)', v: `€${summary.adrGeral.toFixed(1)}` },
-                { k: 'RevPAR (receita / noite de capac.)', v: `€${summary.revparGeral.toFixed(2)}` },
-                {
-                  k: 'Antecedência média (dias)',
-                  v: leadTimeKpiValue,
-                },
+                { k: t('occupancy.kpiOccupancy'), v: `${summary.ocupacaoGeral} %` },
+                { k: t('occupancy.kpiNights'), v: String(summary.totalNights) },
+                { k: t('occupancy.kpiRevenue'), v: `€${summary.totalReceita.toFixed(0)}` },
+                { k: t('occupancy.kpiAdr'), v: `€${summary.adrGeral.toFixed(1)}` },
+                { k: t('occupancy.kpiRevpar'), v: `€${summary.revparGeral.toFixed(2)}` },
+                { k: t('occupancy.kpiLead'), v: leadTimeKpiValue },
               ] as { k: string; v: string }[]
             ).map((c) => (
               <div
@@ -569,12 +624,11 @@ export function OccupancyDashboard() {
           {monthRows.length > 0 ? (
             <section
               className="space-y-4 rounded-2xl border border-[#E0DBCF] bg-white p-4 shadow-sm sm:p-6"
-              aria-label="Grafico"
+              aria-label={t('occupancy.chartAria')}
             >
-              <h2 className="font-serif text-lg font-bold text-[#4A4A4A]">Série mensal</h2>
+              <h2 className="font-serif text-lg font-bold text-[#4A4A4A]">{t('occupancy.seriesTitle')}</h2>
               <p className="text-sm text-[#888]">
-                Barras = receita; linha sólida = ocupação; linha a tracejado = mesmo mês, ano
-                homólogo (dados nesse recorte n-1).
+                {t('occupancy.seriesHint')}
               </p>
               <div className="h-80 w-full min-h-[280px] max-w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -601,13 +655,13 @@ export function OccupancyDashboard() {
                       contentStyle={{ borderRadius: 12, borderColor: '#E0DBCF', fontSize: 12 }}
                       labelStyle={{ color: '#4A4A4A', fontWeight: 600 }}
                       formatter={(value, name) => {
-                        if (name === 'Ocupação %' || name === 'Ocup. ano ant. (%)') {
+                        if (name === t('occupancy.legendOcc') || name === t('occupancy.legendOccPrev')) {
                           return [value == null || Number.isNaN(Number(value)) ? '—' : `${Number(value).toFixed(1)}%`, String(name)];
                         }
-                        if (name === 'Receita (€)' || name === 'Receita') {
-                          return [`${Number(value).toFixed(2)} €`, 'Receita'];
+                        if (name === t('occupancy.legendRevenue') || name === 'Receita') {
+                          return [`${Number(value).toFixed(2)} €`, t('occupancy.colRevenue')];
                         }
-                        if (name === 'Noites') return [String(value), 'Noites'];
+                        if (name === t('occupancy.legendNights')) return [String(value), t('occupancy.legendNights')];
                         return [String(value), String(name)];
                       }}
                     />
@@ -616,7 +670,7 @@ export function OccupancyDashboard() {
                       yAxisId="right"
                       dataKey="Receita"
                       fill="#DAA520"
-                      name="Receita (€)"
+                      name={t('occupancy.legendRevenue')}
                       maxBarSize={40}
                     />
                     <Line
@@ -626,13 +680,13 @@ export function OccupancyDashboard() {
                       stroke="#4A4A4A"
                       strokeWidth={2}
                       dot={false}
-                      name="Ocupação %"
+                      name={t('occupancy.legendOcc')}
                     />
                     <Line
                       yAxisId="left"
                       type="monotone"
                       dataKey="OcupAnoAnt"
-                      name="Ocup. ano ant. (%)"
+                      name={t('occupancy.legendOccPrev')}
                       stroke="#8B7E66"
                       strokeWidth={1.5}
                       strokeDasharray="5 4"
@@ -650,14 +704,14 @@ export function OccupancyDashboard() {
               {pieData.length > 0 && (
                 <section
                   className="rounded-2xl border border-[#E0DBCF] bg-white p-4 shadow-sm sm:p-5"
-                  aria-label="Resumo por canal"
+                  aria-label={t('occupancy.mixAria')}
                 >
-                  <h2 className="font-serif text-lg font-bold text-[#4A4A4A]">Mix por canal</h2>
-                  <p className="mt-1 text-sm text-[#888]">Noites e receita (reservas do filtro).</p>
+                  <h2 className="font-serif text-lg font-bold text-[#4A4A4A]">{t('occupancy.mixTitle')}</h2>
+                  <p className="mt-1 text-sm text-[#888]">{t('occupancy.mixHint')}</p>
                   <p className="mb-1 mt-2 text-center text-[10px] text-[#999] sm:text-xs">
                     {pieSlice.byReceita
-                      ? 'Partilha de receita — legenda (sem rótulo no círculo, evita corte)'
-                      : 'Partilha de noites (receita por canal indisponível ou zero) — legenda'}
+                      ? t('occupancy.pieRevenue')
+                      : t('occupancy.pieNights')}
                   </p>
                   <div className="relative mx-auto mt-1 w-full min-w-[200px] max-w-sm px-1 sm:px-3">
                     <div className="h-[220px] w-full min-h-[220px] sm:h-56 sm:min-h-56">
@@ -708,14 +762,13 @@ export function OccupancyDashboard() {
                   </div>
                   <ul
                     className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-xs text-[#4A4A4A] sm:gap-x-4 sm:text-sm"
-                    aria-label="Legenda do gráfico"
+                    aria-label={t('occupancy.pieLegendAria')}
                   >
                     {pieData.map((d, i) => {
                       const denom = pieSlice.byReceita ? pieReceitaTotal : pieNoitesTotal;
                       const num = pieSlice.byReceita ? d.receita : d.noites;
                       const rel =
                         denom > 0 ? Math.round((num / denom) * 1000) / 10 : 0;
-                      const c = d.channel as Channel;
                       return (
                         <li key={d.channel} className="flex min-w-0 max-w-full items-baseline gap-1.5">
                           <span
@@ -723,7 +776,7 @@ export function OccupancyDashboard() {
                             aria-hidden
                           />
                           <span className="min-w-0 break-words font-medium">
-                            {CHANNEL_PIE_LABEL[c] ?? d.channel}{' '}
+                            {tChannel(t, d.channel)}{' '}
                             <span className="whitespace-nowrap text-[#888]">({rel}%)</span>
                           </span>
                         </li>
@@ -738,7 +791,7 @@ export function OccupancyDashboard() {
                       >
                         <span className="capitalize">{b.channel}</span>
                         <span>
-                          {b.noites} noit. · {b.receita.toFixed(0)} €
+                          {t('occupancy.nightsEur', { nights: b.noites, eur: b.receita.toFixed(0) })}
                         </span>
                       </li>
                     ))}
@@ -752,13 +805,13 @@ export function OccupancyDashboard() {
                     ? 'rounded-2xl border border-[#E0DBCF] bg-white p-4 shadow-sm sm:p-5'
                     : 'rounded-2xl border border-[#E0DBCF] bg-white p-4 shadow-sm sm:p-5 lg:col-span-2'
                 }
-                aria-label="Tabela mensal"
+                aria-label={t('occupancy.tableAria')}
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                   <div className="min-w-0 flex-1">
-                    <h2 className="font-serif text-lg font-bold text-[#4A4A4A]">Tabela (exportável)</h2>
+                    <h2 className="font-serif text-lg font-bold text-[#4A4A4A]">{t('occupancy.tableTitle')}</h2>
                     <p className="mt-1 text-sm text-[#888]">
-                      Mesma série que o gráfico. CSV, XLSX (Excel) ou PDF completo.
+                      {t('occupancy.tableHint')}
                     </p>
                   </div>
                   <div className="flex flex-shrink-0 flex-wrap gap-2">
@@ -767,17 +820,17 @@ export function OccupancyDashboard() {
                       onClick={handleDownloadTableExcel}
                       disabled={monthRows.length === 0}
                       className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#E0DBCF] bg-[#F8F7F2] px-2.5 py-2 text-xs font-semibold text-[#1d6f42] shadow-sm transition hover:border-[#1d6f42]/50 hover:bg-[#eef7ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1d6f42] disabled:cursor-not-allowed disabled:opacity-50"
-                      title="UTF-8 ; — abre no Excel"
+                      title={t('occupancy.excelCsvTitle')}
                     >
                       <FileSpreadsheet size={14} className="shrink-0" aria-hidden />
-                      Excel (CSV)
+                      {t('occupancy.excelCsv')}
                     </button>
                     <button
                       type="button"
                       onClick={handleDownloadXlsx}
                       disabled={monthRows.length === 0}
                       className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#1d6f42]/40 bg-white px-2.5 py-2 text-xs font-semibold text-[#1d6f42] shadow-sm transition hover:bg-[#eef7ef] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1d6f42] disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Ficheiro .xlsx (Excel nativo)"
+                      title={t('occupancy.xlsxTitle')}
                     >
                       <FileSpreadsheet size={14} className="shrink-0" aria-hidden />
                       XLSX
@@ -787,7 +840,7 @@ export function OccupancyDashboard() {
                       onClick={handleDownloadPdf}
                       disabled={loading || monthRows.length === 0}
                       className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#E0DBCF] bg-white px-2.5 py-2 text-xs font-semibold text-[#4A4A4A] shadow-sm transition hover:border-[#DAA520] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Relatório PDF: totais, ADR, RevPAR, lead time, tabela, canais"
+                      title={t('occupancy.pdfTitle')}
                     >
                       <FileText size={14} className="shrink-0" aria-hidden />
                       PDF
@@ -795,26 +848,26 @@ export function OccupancyDashboard() {
                   </div>
                 </div>
                 <div className="mt-3 w-full min-w-0 max-w-full overflow-x-auto [scrollbar-gutter:stable]">
-                  <p className="mb-1 text-[10px] text-[#999] sm:hidden">Desliza ➡ para colunas e YoY</p>
+                  <p className="mb-1 text-[10px] text-[#999] sm:hidden">{t('occupancy.swipeCols')}</p>
                   <div className="min-w-[640px] sm:min-w-0">
                     <table className="w-full text-left text-xs sm:text-sm">
                       <thead>
                         <tr className="border-b border-[#E0DBCF] text-[#888]">
-                          <th className="whitespace-nowrap py-2 pr-2">Mês</th>
-                          <th className="whitespace-nowrap py-2 pr-2">Noites</th>
-                          <th className="whitespace-nowrap py-2 pr-2">Receita</th>
-                          <th className="whitespace-nowrap py-2 pr-2">Ocup.</th>
-                          <th className="hidden sm:table-cell whitespace-nowrap py-2 pr-2" title="Tarifa média / noite">
+                          <th className="whitespace-nowrap py-2 pr-2">{t('occupancy.colMonth')}</th>
+                          <th className="whitespace-nowrap py-2 pr-2">{t('occupancy.colNights')}</th>
+                          <th className="whitespace-nowrap py-2 pr-2">{t('occupancy.colRevenue')}</th>
+                          <th className="whitespace-nowrap py-2 pr-2">{t('occupancy.colOcc')}</th>
+                          <th className="hidden sm:table-cell whitespace-nowrap py-2 pr-2" title={t('occupancy.kpiAdr')}>
                             ADR
                           </th>
-                          <th className="hidden md:table-cell whitespace-nowrap py-2 pr-2" title="Receita / noite de capac.">
+                          <th className="hidden md:table-cell whitespace-nowrap py-2 pr-2" title={t('occupancy.kpiRevpar')}>
                             RevP.
                           </th>
-                          <th className="whitespace-nowrap py-2 pr-2" title="Ano homólogo, mesmo mês">
-                            Ocup. n-1
+                          <th className="whitespace-nowrap py-2 pr-2" title={t('occupancy.colOccPrev')}>
+                            {t('occupancy.colOccPrev')}
                           </th>
-                          <th className="whitespace-nowrap py-2" title="Variação p.p. de ocup.">
-                            YoY ocu
+                          <th className="whitespace-nowrap py-2" title={t('occupancy.colYoy')}>
+                            {t('occupancy.colYoy')}
                           </th>
                         </tr>
                       </thead>
@@ -858,21 +911,21 @@ export function OccupancyDashboard() {
 
           {!loading && monthRows.length === 0 && list.length > 0 && (
             <div className="space-y-3 text-center text-sm text-[#888]">
-              <p>Sem dados do intervalo na combinação de filtros. Alarga o período ou repõe o escopo de estadias.</p>
+              <p>{t('occupancy.emptyFilter')}</p>
             </div>
           )}
           {!loading && list.length === 0 && (
             <div className="space-y-2 rounded-2xl border border-dashed border-[#E0DBCF] bg-white/80 px-4 py-8 text-center text-sm text-[#888]">
-              <p>Sem reservas na base.</p>
+              <p>{t('occupancy.emptyBase')}</p>
               <p>
                 <Link
                   className="font-semibold text-[#B8860B] underline underline-offset-2 hover:text-[#9a7200]"
                   href="/dashboard/reservations"
                 >
-                  Criar ou importar reservas
+                  {t('occupancy.createOrImport')}
                 </Link>
                 {' · '}
-                <span className="text-[#AAA]">(hospedes / iCal consoante o teu setup)</span>
+                <span className="text-[#AAA]">{t('occupancy.emptyHint')}</span>
               </p>
             </div>
           )}

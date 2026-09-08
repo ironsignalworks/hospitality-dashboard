@@ -33,12 +33,12 @@ export async function PATCH(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   const roomCount = Number(body.room_count);
   if (!Number.isFinite(roomCount) || roomCount < 1 || roomCount > 6) {
-    return NextResponse.json({ error: 'Número de quartos inválido (1–6).' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid room count (1–6).' }, { status: 400 });
   }
 
   const rawNames = body.room_names;
@@ -47,7 +47,7 @@ export async function PATCH(request: Request) {
     rawNames.length !== roomCount ||
     rawNames.some((n) => !String(n).trim())
   ) {
-    return NextResponse.json({ error: 'Nomes dos quartos inválidos.' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid room names.' }, { status: 400 });
   }
 
   const settings: AppSettings = {
@@ -64,6 +64,6 @@ export async function PATCH(request: Request) {
     .from('concierge_content')
     .upsert(settingsToRows(settings), { onConflict: 'key' });
 
-  if (error) return NextResponse.json({ error: 'Erro ao guardar.' }, { status: 500 });
+  if (error) return NextResponse.json({ error: 'Could not save.' }, { status: 500 });
   return NextResponse.json({ ok: true, settings });
 }

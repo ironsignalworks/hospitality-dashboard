@@ -1,9 +1,12 @@
+import type { Metadata } from 'next';
 import DashboardSidebar from './sidebar';
 import { getBrand } from '@/lib/brand';
+import { getServerT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: `Painel · ${getBrand().name}`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerT();
+  return { title: t('meta.dashboardTitle', { brand: getBrand().name }) };
+}
 
 export const dynamic = 'force-dynamic';
 

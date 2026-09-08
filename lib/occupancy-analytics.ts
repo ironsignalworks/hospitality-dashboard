@@ -1,4 +1,6 @@
 import type { Channel, Reservation } from './types';
+import type { Locale } from './i18n/locale';
+import { localeToBcp47 } from './i18n/locale';
 
 export const DEFAULT_ROOM_COUNT = 3;
 
@@ -41,17 +43,18 @@ function addYearsToMonthKey(yyyyMM: string, years: number): string {
   return `${y + years}-${String(m).padStart(2, '0')}`;
 }
 
-function eachMonthInRange(from: string, to: string): { key: string; label: string }[] {
+function eachMonthInRange(from: string, to: string, locale: Locale = 'en'): { key: string; label: string }[] {
   const a = parseLocal(from);
   const b = parseLocal(to);
   const out: { key: string; label: string }[] = [];
   const cur = new Date(a.getFullYear(), a.getMonth(), 1);
   const endM = new Date(b.getFullYear(), b.getMonth(), 1);
+  const bcp = localeToBcp47(locale);
   while (cur.getTime() <= endM.getTime()) {
     const key = monthKey(cur);
     out.push({
       key,
-      label: cur.toLocaleDateString('pt-PT', { month: 'short', year: '2-digit' }),
+      label: cur.toLocaleDateString(bcp, { month: 'short', year: '2-digit' }),
     });
     cur.setMonth(cur.getMonth() + 1);
   }
@@ -129,9 +132,10 @@ export function buildMonthlyStats(
   reservations: Reservation[],
   from: string,
   to: string,
-  roomCount: number
+  roomCount: number,
+  locale: Locale = 'en'
 ): MonthStatRow[] {
-  const monthRows = eachMonthInRange(from, to);
+  const monthRows = eachMonthInRange(from, to, locale);
   const validMonths = monthSet(monthRows);
   const byMonth = new Map<string, { noites: number; receita: number }>();
   for (const m of monthRows) {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import type { Map as MLMap, Marker as MLMarker } from 'maplibre-gl';
 import { MapPin, Search, Loader2 } from 'lucide-react';
+import { useLocale, type Locale } from '@/lib/i18n';
 
 // ── shared types ───────────────────────────────────────────────────────────────
 
@@ -31,22 +32,26 @@ const LIBRE_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.js
 
 interface NominatimResult { place_id: number; lat: string; lon: string; display_name: string; }
 
-async function nominatimSearch(query: string): Promise<NominatimResult[]> {
+function nominatimAcceptLanguage(locale: Locale) {
+  return locale === 'en' ? 'en,en-GB;q=0.9,pt;q=0.8' : 'pt,pt-PT;q=0.9,en;q=0.8';
+}
+
+async function nominatimSearch(query: string, locale: Locale): Promise<NominatimResult[]> {
   if (!query.trim()) return [];
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
-      { headers: { 'Accept-Language': 'pt,pt-PT;q=0.9,en;q=0.8' } },
+      { headers: { 'Accept-Language': nominatimAcceptLanguage(locale) } },
     );
     return res.ok ? (await res.json() as NominatimResult[]) : [];
   } catch { return []; }
 }
 
-async function nominatimReverse(lat: number, lon: number): Promise<string> {
+async function nominatimReverse(lat: number, lon: number, locale: Locale): Promise<string> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-      { headers: { 'Accept-Language': 'pt,pt-PT;q=0.9,en;q=0.8' } },
+      { headers: { 'Accept-Language': nominatimAcceptLanguage(locale) } },
     );
     const data = await res.json() as { display_name?: string };
     return data.display_name ?? '';
@@ -101,6 +106,7 @@ function resolveLatLng(
 }
 
 function GoogleMapsMap({ location, onLocationChange }: Props) {
+  const { t } = useLocale();
   const mapDivRef = useRef<HTMLDivElement>(null);
   const searchRef  = useRef<HTMLInputElement>(null);
   const mapRef     = useRef<google.maps.Map | null>(null);
@@ -199,7 +205,7 @@ function GoogleMapsMap({ location, onLocationChange }: Props) {
         <input
           ref={searchRef}
           type="text"
-          placeholder="Pesquisar endereço…"
+          placeholder={t('settings.searchAddress')}
           className="w-full rounded-xl border border-[#E0DBCF] bg-white pl-8 pr-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520]"
         />
       </div>
@@ -217,6 +223,7 @@ function goldMarkerEl() {
 }
 
 function MapLibreMap({ location, onLocationChange }: Props) {
+  const { locale, t } = useLocale();
   const mapDivRef  = useRef<HTMLDivElement>(null);
   const mapRef     = useRef<MLMap | null>(null);
   const markerRef  = useRef<MLMarker | null>(null);
@@ -226,7 +233,9 @@ function MapLibreMap({ location, onLocationChange }: Props) {
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChangeRef = useRef(onLocationChange);
+  const localeRef = useRef(locale);
   useEffect(() => { onChangeRef.current = onLocationChange; }, [onLocationChange]);
+  useEffect(() => { localeRef.current = locale; }, [locale]);
 
   useEffect(() => {
     if (!mapDivRef.current) return;
@@ -265,7 +274,7 @@ function MapLibreMap({ location, onLocationChange }: Props) {
           markerRef.current = m;
           m.on('dragend', async () => {
             const pos = m.getLngLat();
-            const address = await nominatimReverse(pos.lat, pos.lng);
+            const address = await nominatimReverse(pos.lat, pos.lng, localeRef.current);
             onChangeRef.current({ lat: pos.lat, lng: pos.lng, address });
           });
         }
@@ -302,7 +311,7 @@ function MapLibreMap({ location, onLocationChange }: Props) {
     if (!q.trim()) { setSearching(false); return; }
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
-      const r = await nominatimSearch(q);
+      const r = await nominatimSearch(q, localeRef.current);
       setResults(r);
       setSearching(false);
     }, 450);
@@ -327,7 +336,7 @@ function MapLibreMap({ location, onLocationChange }: Props) {
       markerRef.current = m;
       m.on('dragend', async () => {
         const pos = m.getLngLat();
-        const addr = await nominatimReverse(pos.lat, pos.lng);
+        const addr = await nominatimReverse(pos.lat, pos.lng, localeRef.current);
         onChangeRef.current({ lat: pos.lat, lng: pos.lng, address: addr });
       });
     }
@@ -343,7 +352,7 @@ function MapLibreMap({ location, onLocationChange }: Props) {
           value={query}
           onChange={(e) => handleSearchChange(e.target.value)}
           onBlur={() => setTimeout(() => setResults([]), 150)}
-          placeholder="Pesquisar endereço…"
+          placeholder={t('settings.searchAddress')}
           className="w-full rounded-xl border border-[#E0DBCF] bg-white pl-8 pr-8 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520]"
         />
         {searching && (

@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
+import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import type { Channel, Guest, Reservation, ReservationStatus } from '@/lib/types';
 import { useSettings } from '@/lib/hooks/use-settings';
+import { useT, tChannel, tStatus, displayRoomLabel } from '@/lib/i18n';
+import { ApiError, fetchApiJson } from '@/lib/api-client';
 
 const INPUT = 'w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] focus:border-transparent bg-white';
 
@@ -31,6 +33,7 @@ interface QuickReservationModalProps {
 }
 
 export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickReservationModalProps) {
+  const t = useT();
   const supabase = IS_DEMO ? null : createClient();
   const settings = useSettings();
 
@@ -50,11 +53,11 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
 
   async function handleSave() {
     if (!form.check_in || !form.check_out || !form.guest_name) {
-      setFormError('Nome do hóspede, check-in e check-out são obrigatórios.');
+      setFormError(t('reservations.required'));
       return;
     }
     if (form.check_in >= form.check_out) {
-      setFormError('Check-out tem de ser depois do check-in.');
+      setFormError(t('reservations.checkoutAfter'));
       return;
     }
     setSaving(true);
@@ -62,7 +65,10 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
 
     try {
       if (IS_DEMO) {
-        const res = await fetch('/api/demo/reservations', {
+        const json = await fetchApiJson<{
+          guest?: { id: string; name: string; email?: string | null };
+          reservation?: { id: string };
+        }>('/api/reservations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -76,72 +82,13 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
             total_eur: form.total_eur,
           }),
         });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json.ok) {
-          throw new Error(String(json.error ?? 'Não foi possível criar a reserva.'));
-        }
-
-        const guestId = (json.guest?.id as string | undefined) ?? null;
-        const guestName = (json.guest?.name as string | undefined) ?? form.guest_name;
-        const reservationId = (json.reservation?.id as string | undefined) ?? null;
-
-        // Keep the browser demo store in sync so the GuestPanel can render immediately.
-        const demoEmail =
-          (json.guest?.email as string | null | undefined) ?? (form.guest_email.trim() || null);
-        let demoGuest: Guest | null = null;
-        if (guestId) {
-          const existingG = MOCK_GUESTS.some((g) => g.id === guestId);
-          if (!existingG) {
-            const g: Guest = {
-              id: guestId,
-              name: guestName,
-              email: demoEmail,
-              phone: null,
-              nationality: null,
-              notes: '',
-              created_at: new Date().toISOString(),
-            };
-            MOCK_GUESTS.push(g);
-            demoGuest = g;
-          } else {
-            demoGuest = MOCK_GUESTS.find((g) => g.id === guestId) ?? null;
-          }
-        }
-        if (reservationId && guestId) {
-          const existingR = MOCK_RESERVATIONS.some((r) => r.id === reservationId);
-          if (!existingR) {
-            const r: Reservation = {
-              id: reservationId,
-              guest_id: guestId,
-              room: form.room,
-              check_in: form.check_in,
-              check_out: form.check_out,
-              channel: form.channel,
-              status: form.status,
-              total_eur: form.total_eur ? parseFloat(form.total_eur) : null,
-              external_id: null,
-              internal_notes: null,
-              created_at: new Date().toISOString(),
-              guest:
-                demoGuest ??
-                ({
-                  id: guestId,
-                  name: guestName,
-                  email: demoEmail,
-                  phone: null,
-                  nationality: null,
-                  notes: '',
-                  created_at: new Date().toISOString(),
-                } satisfies Guest),
-            };
-            MOCK_RESERVATIONS.push(r);
-          }
-        }
-
+        const guestId = json.guest?.id ?? null;
+        const guestName = json.guest?.name ?? form.guest_name;
+        const reservationId = json.reservation?.id ?? null;
         setSaving(false);
         onSaved?.({
           ok: true,
-          message: 'Reserva criada.',
+          message: t('reservations.created'),
           guestId,
           guestName,
           reservationId,
@@ -200,7 +147,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       setSaving(false);
       onSaved?.({
         ok: true,
-        message: 'Reserva criada.',
+        message: t('reservations.created'),
         guestId,
         guestName: form.guest_name,
         reservationId: (r as { id: string } | null)?.id ?? null,
@@ -208,7 +155,13 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       onClose();
     } catch (e) {
       setSaving(false);
-      const msg = e instanceof Error ? e.message : 'Não foi possível criar a reserva.';
+      const raw = e instanceof Error ? e.message : t('reservations.saveFailed');
+      const msg =
+        (e instanceof ApiError && e.code === 'CONFLICT') ||
+        raw.toLowerCase().includes('conflict') ||
+        raw.toLowerCase().includes('double booking')
+          ? t('reservations.conflict')
+          : raw;
       setFormError(msg);
       onSaved?.({
         ok: false,
@@ -225,20 +178,20 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
       <div className="max-h-[90dvh] w-full max-w-md cursor-default overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-[#E0DBCF]">
           <div>
-            <h2 className="font-serif font-bold text-[#4A4A4A]">Nova reserva</h2>
+            <h2 className="font-serif font-bold text-[#4A4A4A]">{t('reservations.newTitle')}</h2>
             <p className="text-xs text-[#888] mt-0.5">{initialRoom}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-            aria-label="Fechar"
+            aria-label={t('common.close')}
           >
             <X size={18} aria-hidden />
           </button>
         </div>
         <div className="p-5 space-y-4">
-          <Field label="Nome do hóspede *">
+          <Field label={t('reservations.guestName')}>
             <input
               type="text"
               value={form.guest_name}
@@ -248,7 +201,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
               autoFocus
             />
           </Field>
-          <Field label="Email do hóspede">
+          <Field label={t('reservations.guestEmail')}>
             <input
               type="email"
               value={form.guest_email}
@@ -258,7 +211,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Check-in *">
+            <Field label={t('reservations.labelCheckIn')}>
               <input
                 type="date"
                 value={form.check_in}
@@ -266,7 +219,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
                 className={INPUT}
               />
             </Field>
-            <Field label="Check-out *">
+            <Field label={t('reservations.labelCheckOut')}>
               <input
                 type="date"
                 value={form.check_out}
@@ -275,40 +228,44 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
               />
             </Field>
           </div>
-          <Field label="Quarto">
+          <Field label={t('reservations.room')}>
             <select
               value={form.room}
               onChange={(e) => setForm({ ...form, room: e.target.value })}
               className={INPUT}
             >
-              {settings.room_names.map((r) => <option key={r}>{r}</option>)}
+              {settings.room_names.map((r) => (
+                <option key={r} value={r}>
+                  {displayRoomLabel(r, t)}
+                </option>
+              ))}
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Canal">
+            <Field label={t('reservations.channel')}>
               <select
                 value={form.channel}
                 onChange={(e) => setForm({ ...form, channel: e.target.value as Channel })}
                 className={INPUT}
               >
-                <option value="direct">Direto</option>
-                <option value="airbnb">Airbnb</option>
-                <option value="booking">Booking.com</option>
+                <option value="direct">{tChannel(t, 'direct')}</option>
+                <option value="airbnb">{tChannel(t, 'airbnb')}</option>
+                <option value="booking">{t('channel.bookingCom')}</option>
               </select>
             </Field>
-            <Field label="Estado">
+            <Field label={t('reservations.status')}>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as ReservationStatus })}
                 className={INPUT}
               >
-                <option value="confirmed">Confirmada</option>
-                <option value="pending">Pendente</option>
-                <option value="checked_in">Check-in feito</option>
+                <option value="confirmed">{tStatus(t, 'confirmed')}</option>
+                <option value="pending">{tStatus(t, 'pending')}</option>
+                <option value="checked_in">{tStatus(t, 'checked_in')}</option>
               </select>
             </Field>
           </div>
-          <Field label="Total (€)">
+          <Field label={t('reservations.totalEur')}>
             <input
               type="number"
               min="0"
@@ -330,7 +287,7 @@ export function QuickReservationModal({ initialRoom, onClose, onSaved }: QuickRe
             disabled={saving}
             className="w-full bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
           >
-            {saving ? 'A guardar…' : 'Criar reserva'}
+            {saving ? t('common.saving') : t('reservations.create')}
           </button>
         </div>
       </div>

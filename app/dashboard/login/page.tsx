@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { getBrand } from '@/lib/brand';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 export default function LoginPage() {
   const brand = getBrand();
+  const t = useT();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +26,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError('Email ou password incorretos.');
+      setError(t('login.badCreds'));
       setLoading(false);
       return;
     }
@@ -43,7 +45,7 @@ export default function LoginPage() {
               {brand.name}
             </span>
           </div>
-          <p className="text-sm text-[#888]">Painel de gestão · acesso privado</p>
+          <p className="text-sm text-[#888]">{t('login.tagline')}</p>
         </div>
 
         <form
@@ -52,7 +54,7 @@ export default function LoginPage() {
         >
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-[#4A4A4A] mb-1.5">
-              Email
+              {t('login.email')}
             </label>
             <input
               id="email"
@@ -68,7 +70,7 @@ export default function LoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-[#4A4A4A] mb-1.5">
-              Password
+              {t('login.password')}
             </label>
             <div className="relative">
               <input
@@ -84,7 +86,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShowPass((p) => !p)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#4A4A4A]"
-                aria-label={showPass ? 'Esconder password' : 'Mostrar password'}
+                aria-label={showPass ? t('login.hidePassword') : t('login.showPassword')}
               >
                 {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -103,7 +105,7 @@ export default function LoginPage() {
             className="w-full flex items-center justify-center gap-2 bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A] focus-visible:ring-offset-2"
           >
             <LogIn size={16} aria-hidden />
-            {loading ? 'A entrar…' : 'Entrar'}
+            {loading ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
       </div>

@@ -23,20 +23,43 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSettings } from '@/lib/hooks/use-settings';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 import type { GuestAlert } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
+import { formatDateTime } from '@/lib/dashboard-date-helpers';
 
 const NAV = [
-  { href: '/dashboard',                     label: 'Hoje',       icon: LayoutDashboard, mobileBottom: true },
-  { href: '/dashboard/reservations',        label: 'Reservas',   icon: CalendarDays,    mobileBottom: true },
-  { href: '/dashboard/historico-ocupacao',  label: 'Ocupação',   icon: BarChart2,       mobileBottom: true },
-  { href: '/dashboard/guests',              label: 'Hóspedes',   icon: Users,           mobileBottom: true },
-  { href: '/dashboard/messages',            label: 'Mensagens',  icon: MessageSquare,   mobileBottom: true },
-  { href: '/dashboard/content',             label: 'Concierge',  icon: FileEdit,        mobileBottom: true },
-  { href: '/dashboard/settings',            label: 'Definições', icon: Settings,        mobileBottom: false },
-  { href: '/dashboard/about',               label: 'Sobre/FAQ',  icon: CircleHelp,      mobileBottom: false },
-];
+  { href: '/dashboard',                     key: 'nav.today', icon: LayoutDashboard, mobileBottom: true },
+  { href: '/dashboard/reservations',        key: 'nav.reservations', icon: CalendarDays,    mobileBottom: true },
+  { href: '/dashboard/historico-ocupacao',  key: 'nav.occupancy', icon: BarChart2,       mobileBottom: true },
+  { href: '/dashboard/guests',              key: 'nav.guests', icon: Users,           mobileBottom: true },
+  { href: '/dashboard/messages',            key: 'nav.messages', icon: MessageSquare,   mobileBottom: true },
+  { href: '/dashboard/content',             key: 'nav.concierge', icon: FileEdit,        mobileBottom: true },
+  { href: '/dashboard/settings',            key: 'nav.settings', icon: Settings,        mobileBottom: false },
+  { href: '/dashboard/about',               key: 'nav.about', icon: CircleHelp,      mobileBottom: false },
+] as const;
 
-function formatAlertTime(iso: string) {
-  return new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+function LocaleToggle() {
+  const { locale, setLocale, t } = useLocale();
+  return (
+    <div
+      role="group"
+      aria-label={t('locale.toggle')}
+      className="flex items-center rounded-lg border border-[#E0DBCF] p-0.5 text-[11px] font-semibold"
+    >
+      {(['en', 'pt'] as const).map((code) => (
+        <button
+          key={code}
+          type="button"
+          aria-pressed={locale === code}
+          onClick={() => setLocale(code)}
+          className={`rounded-md px-2 py-1 uppercase tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520] ${
+            locale === code ? 'bg-[#F3E6C0] text-dash-accent' : 'text-[#888] hover:text-[#4A4A4A]'
+          }`}
+        >
+          {code}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function NotificationBell({ alerts, dueAlerts, dismiss }: {
@@ -44,6 +67,7 @@ function NotificationBell({ alerts, dueAlerts, dismiss }: {
   dueAlerts: GuestAlert[];
   dismiss: (id: string) => void;
 }) {
+  const { locale, t } = useLocale();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -105,21 +129,21 @@ function NotificationBell({ alerts, dueAlerts, dismiss }: {
       ref={panelRef}
       id="dashboard-lembretes-panel"
       role="dialog"
-      aria-label="Lembretes"
+      aria-label={t('alerts.title')}
       className="fixed z-[200] w-[min(20rem,calc(100vw-2rem))] max-h-[min(28rem,60svh)] flex flex-col rounded-xl border border-[#E0DBCF] bg-white shadow-xl"
       style={{ top: panelPos.top, left: panelPos.left }}
     >
           <div className="px-4 py-3 border-b border-[#E0DBCF] flex items-center justify-between shrink-0">
-            <p className="text-sm font-semibold text-[#4A4A4A]">Lembretes</p>
+            <p className="text-sm font-semibold text-[#4A4A4A]">{t('alerts.title')}</p>
             {alerts.length > 0 && (
-              <span className="text-xs text-[#888]">{alerts.length} activo(s)</span>
+              <span className="text-xs text-[#888]">{t('alerts.activeCount', { n: alerts.length })}</span>
             )}
           </div>
 
           <div className="overflow-y-auto flex-1 min-h-0">
             {alerts.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-[#888]">
-                Nenhum lembrete activo.
+                {t('alerts.empty')}
               </div>
             ) : (
               <div className="divide-y divide-[#F0EDE6]">
@@ -136,8 +160,8 @@ function NotificationBell({ alerts, dueAlerts, dismiss }: {
                         )}
                         <p className="text-xs text-[#555] leading-snug mt-0.5 line-clamp-3">{a.message}</p>
                         <p className={`text-[11px] mt-1 ${isDue ? 'text-amber-600 font-medium' : 'text-[#AAA]'}`}>
-                          {isDue ? '⚠ ' : ''}{formatAlertTime(a.notify_at)}
-                          {a.delivered_at ? ' · Enviado' : ''}
+                          {isDue ? '⚠ ' : ''}{formatDateTime(a.notify_at, locale)}
+                          {a.delivered_at ? ` · ${t('alerts.sent')}` : ''}
                         </p>
                       </div>
                       <button
@@ -165,7 +189,7 @@ function NotificationBell({ alerts, dueAlerts, dismiss }: {
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="dialog"
         aria-controls={open ? 'dashboard-lembretes-panel' : undefined}
-        aria-label={`Lembretes${unread > 0 ? ` — ${unread} por ver` : ''}`}
+        aria-label={unread > 0 ? t('alerts.unreadAria', { n: unread }) : t('alerts.label')}
         className="relative p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6] hover:text-[#4A4A4A] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
       >
         <Bell size={17} aria-hidden />
@@ -185,6 +209,7 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const settings = useSettings();
+  const { t } = useLocale();
   const { alerts, dueAlerts, dismiss } = useNotifications();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -226,11 +251,11 @@ export default function DashboardSidebar() {
           </Link>
           <NotificationBell alerts={alerts} dueAlerts={dueAlerts} dismiss={dismiss} />
         </div>
-        <p className="text-xs text-dash-muted mt-1 ml-9">Painel de gestão</p>
+        <p className="text-xs text-dash-muted mt-1 ml-9">{t('nav.tagline')}</p>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Navegação principal">
-        {NAV.map(({ href, label, icon: Icon }) => {
+      <nav className="flex-1 px-3 py-4 space-y-1" aria-label={t('nav.main')}>
+        {NAV.map(({ href, key, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
             <Link
@@ -244,20 +269,21 @@ export default function DashboardSidebar() {
               }`}
             >
               <Icon size={18} aria-hidden />
-              {label}
+              {t(key)}
             </Link>
           );
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-[#E0DBCF]">
+      <div className="px-3 py-4 border-t border-[#E0DBCF] space-y-2">
+        <LocaleToggle />
         <button
           type="button"
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#4A4A4A] hover:bg-red-50 hover:text-red-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
         >
           <LogOut size={18} aria-hidden />
-          Sair
+          {t('nav.logout')}
         </button>
       </div>
     </div>
@@ -289,7 +315,7 @@ export default function DashboardSidebar() {
               onClick={() => setMobileOpen((o) => !o)}
               aria-expanded={mobileOpen ? 'true' : 'false'}
               aria-controls="dashboard-mobile-drawer"
-              aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
+              aria-label={mobileOpen ? t('nav.closeMenu') : t('nav.openMenu')}
               className="rounded-lg p-2 text-[#666] hover:bg-[#F8F9FA] hover:text-[#333] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
             >
               {mobileOpen ? <X size={22} aria-hidden /> : <Menu size={22} aria-hidden />}
@@ -307,7 +333,7 @@ export default function DashboardSidebar() {
             mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
           onClick={() => setMobileOpen(false)}
-          aria-label="Fechar menu"
+          aria-label={t('nav.closeMenu')}
         />
         <aside
           id="dashboard-mobile-drawer"
@@ -325,10 +351,10 @@ export default function DashboardSidebar() {
       {/* Mobile bottom navigation — keep below drawer + overlay (same z-50 caused Chrome to paint nav over menu) */}
       <nav
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[#E0DBCF] bg-white/95 pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] pt-1.5 shadow-[0_-8px_24px_-12px_rgba(74,74,74,0.12)] backdrop-blur-md supports-[backdrop-filter]:bg-white/90"
-        aria-label="Navegação rápida"
+        aria-label={t('nav.quick')}
       >
         <ul className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5 px-1">
-          {NAV.filter((n) => n.mobileBottom !== false).map(({ href, label, icon: Icon }) => {
+          {NAV.filter((n) => n.mobileBottom !== false).map(({ href, key, icon: Icon }) => {
             const active =
               pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
             return (
@@ -346,7 +372,7 @@ export default function DashboardSidebar() {
                   >
                     <Icon size={20} strokeWidth={active ? 2.25 : 2} aria-hidden />
                   </span>
-                  <span className="truncate px-0.5 text-center">{label}</span>
+                  <span className="truncate px-0.5 text-center">{t(key)}</span>
                 </Link>
               </li>
             );

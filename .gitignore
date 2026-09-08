@@ -41,5 +41,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# vitest
+.vitest/
+
+# OS
+Thumbs.db
+
 # Local Netlify folder
 .netlify

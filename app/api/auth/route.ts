@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   try {
     ({ action, email, password } = await request.json());
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   const supabase = await createClient();
 
@@ -21,5 +21,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  return NextResponse.json({ error: 'Ação inválida' }, { status: 400 });
+  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }

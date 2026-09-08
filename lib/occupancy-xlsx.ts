@@ -1,31 +1,14 @@
 import * as XLSX from 'xlsx';
 import type { MonthStatRow } from './occupancy-analytics';
+import type { OccupancyTableHeaders } from './occupancy-csv';
 
-/**
- * Ficheiro .xlsx (mesma informação que o ecrã / CSV, com folha "Resumo" opcional).
- */
 export function downloadOccupancyXlsx(
-  from: string,
-  to: string,
+  _from: string,
+  _to: string,
   monthRows: MonthStatRow[],
-  sheetName = 'Mensal'
+  opts: { headers: OccupancyTableHeaders; sheetName: string; filename: string }
 ) {
-  const aoa: (string | number)[][] = [
-    [
-      'Mês (YYYY-MM)',
-      'Rótulo',
-      'Noites',
-      'Receita (€)',
-      'Ocup. %',
-      'ADR (€)',
-      'RevPAR (€)',
-      'Dias mês',
-      'Ocup. ano ant. %',
-      'Rec. ano ant. (€)',
-      'YoY ocup. (pp)',
-      'YoY receita (%)',
-    ],
-  ];
+  const aoa: (string | number)[][] = [[...opts.headers]];
   for (const r of monthRows) {
     aoa.push([
       r.key,
@@ -44,6 +27,6 @@ export function downloadOccupancyXlsx(
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-  XLSX.writeFile(wb, `historico-ocupacao-${from}-a-${to}.xlsx`, { bookType: 'xlsx' });
+  XLSX.utils.book_append_sheet(wb, ws, opts.sheetName.slice(0, 31));
+  XLSX.writeFile(wb, opts.filename, { bookType: 'xlsx' });
 }

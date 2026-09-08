@@ -24,13 +24,13 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   const checkIn = str(body.checkIn);
   const checkOut = str(body.checkOut);
   if (!checkIn || !checkOut) {
-    return NextResponse.json({ error: 'checkIn e checkOut (ISO) são obrigatórios' }, { status: 400 });
+    return NextResponse.json({ error: 'checkIn and checkOut (ISO) are required' }, { status: 400 });
   }
 
   const input: CreateReservationInput = {

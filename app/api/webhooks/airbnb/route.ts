@@ -1,7 +1,13 @@
+import { NextResponse } from 'next/server';
 import { parseAirbnbEvent, verifyAirbnbWebhook } from '@/lib/integrations/airbnb/webhooks';
 import { mapAirbnbToReservation } from '@/lib/integrations/airbnb/mapper';
 import { syncQueue } from '@/lib/sync/queue';
-import { NextResponse } from 'next/server';
+import {
+  unwrapWebhookReservation,
+  webhookEnvelopeSchema,
+  webhookStaySchema,
+} from '@/lib/schemas/webhooks';
+import { parseSchema, validationJson } from '@/lib/schemas/parse';
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -13,10 +19,18 @@ export async function POST(request: Request) {
   try {
     body = raw ? (JSON.parse(raw) as unknown) : {};
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON', code: 'INVALID_JSON' }, { status: 400 });
   }
 
-  const ev = parseAirbnbEvent(body);
+  const envelope = parseSchema(webhookEnvelopeSchema, body);
+  if (!envelope.success) return validationJson(envelope.issues);
+
+  const ev = parseAirbnbEvent(envelope.data);
+
+  if (ev.type !== 'unknown') {
+    const stay = parseSchema(webhookStaySchema, unwrapWebhookReservation(envelope.data));
+    if (!stay.success) return validationJson(stay.issues);
+  }
 
   if (ev.type === 'reservation.created' || ev.type === 'reservation.updated') {
     const mapped = mapAirbnbToReservation(ev.payload);

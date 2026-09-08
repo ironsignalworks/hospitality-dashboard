@@ -21,7 +21,7 @@ export async function runCampaign(input: {
 
   const emails = (guests ?? []).map((g) => g.email as string).filter(Boolean);
   if (emails.length === 0) {
-    return { error: 'Nenhum hóspede com email encontrado.', sent: 0, errors: [] as string[] };
+    return { error: 'No guests with email found.', sent: 0, errors: [] as string[] };
   }
 
   const { sent, errors } = await sendCampaign(emails, subject, body);

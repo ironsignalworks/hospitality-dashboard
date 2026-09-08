@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { IS_DEMO, MOCK_GUESTS, MOCK_RESERVATIONS } from '@/lib/demo';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { IS_DEMO } from '@/lib/demo';
 import { createClient } from '@/lib/supabase';
 import {
   Search,
@@ -15,28 +15,17 @@ import {
   Bell,
 } from 'lucide-react';
 import type { Guest, GuestAlert, Reservation } from '@/lib/types';
+import { useLocale, tChannel, displayRoomLabel } from '@/lib/i18n';
+import { formatDate, formatDateTime, stripTZ } from '@/lib/dashboard-date-helpers';
+import { fetchApiJson } from '@/lib/api-client';
+import { useGuestsApi, useReservationsApi } from '@/lib/hooks/use-demo-api';
+import { ListSkeleton } from '../components/list-skeleton';
 
-const CHANNEL_LABEL: Record<string, string> = {
-  airbnb: 'Airbnb',
-  booking: 'Booking',
-  direct: 'Direto',
+const DATE_NUM: Intl.DateTimeFormatOptions = {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
 };
-
-function formatDatePT(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-PT', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}
-
-function formatDatetimePT(iso: string) {
-  return new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function stripTZ(d: string) {
-  return d?.split('T')[0] ?? d;
-}
 
 function toDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -59,10 +48,13 @@ type GuestWithStats = Guest & {
 };
 
 export default function GuestsPage() {
+  const { locale, t } = useLocale();
   const supabase = IS_DEMO ? null : createClient();
-  const [guests, setGuests] = useState<GuestWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const demoGuests = useGuestsApi(IS_DEMO);
+  const demoReservations = useReservationsApi(IS_DEMO);
+  const [prodGuests, setProdGuests] = useState<GuestWithStats[]>([]);
+  const [prodLoading, setProdLoading] = useState(!IS_DEMO);
+  const [prodError, setProdError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<GuestWithStats | null>(null);
   const [guestReservations, setGuestReservations] = useState<Reservation[]>([]);
@@ -83,23 +75,15 @@ export default function GuestsPage() {
   const [campaignBody, setCampaignBody] = useState('');
   const [campaignSending, setCampaignSending] = useState(false);
   const [campaignResult, setCampaignResult] = useState<string | null>(null);
+  const [campaignFailed, setCampaignFailed] = useState(false);
 
   const fetchGuests = useCallback(async () => {
     if (IS_DEMO) {
-      const withStats: GuestWithStats[] = MOCK_GUESTS.map((g) => {
-        const gRes = MOCK_RESERVATIONS.filter((r) => r.guest_id === g.id);
-        const last = gRes.reduce<string | null>(
-          (acc, r) => (!acc || r.check_in > acc ? r.check_in : acc),
-          null
-        );
-        return { ...g, reservation_count: gRes.length, last_stay: last };
-      });
-      setGuests(withStats);
-      setLoading(false);
+      await Promise.all([demoGuests.refetch(), demoReservations.refetch()]).catch(() => {});
       return;
     }
 
-    setLoading(true);
+    setProdLoading(true);
     const { data: reservations, error: resError } = await supabase!
       .from('reservations')
       .select('guest_id, check_in, check_out')
@@ -111,11 +95,11 @@ export default function GuestsPage() {
       .order('name', { ascending: true });
 
     if (resError || guestError) {
-      setFetchError('Erro ao carregar hóspedes.');
-      setLoading(false);
+      setProdError(t('guests.loadError'));
+      setProdLoading(false);
       return;
     }
-    if (!rawGuests) { setLoading(false); return; }
+    if (!rawGuests) { setProdLoading(false); return; }
 
     const statsMap: Record<string, { count: number; last: string | null }> = {};
     for (const r of reservations ?? []) {
@@ -134,11 +118,33 @@ export default function GuestsPage() {
       last_stay: statsMap[g.id]?.last ?? null,
     }));
 
-    setGuests(withStats);
-    setLoading(false);
-  }, [supabase]);
+    setProdGuests(withStats);
+    setProdLoading(false);
+  }, [demoGuests.refetch, demoReservations.refetch, supabase, t]);
 
-  useEffect(() => { fetchGuests(); }, [fetchGuests]);
+  useEffect(() => {
+    if (IS_DEMO) return;
+    fetchGuests();
+  }, [fetchGuests]);
+
+  const guests: GuestWithStats[] = useMemo(() => {
+    if (!IS_DEMO) return prodGuests;
+    return demoGuests.data.map((g) => {
+      const gRes = demoReservations.data.filter((r) => r.guest_id === g.id);
+      const last = gRes.reduce<string | null>(
+        (acc, r) => (!acc || r.check_in > acc ? r.check_in : acc),
+        null
+      );
+      return { ...g, reservation_count: gRes.length, last_stay: last };
+    });
+  }, [demoGuests.data, demoReservations.data, prodGuests]);
+
+  const loading = IS_DEMO ? demoGuests.loading || demoReservations.loading : prodLoading;
+  const fetchError = IS_DEMO
+    ? demoGuests.error || demoReservations.error
+      ? t('guests.loadError')
+      : null
+    : prodError;
 
   async function loadGuestAlerts(guestId: string) {
     if (IS_DEMO) return;
@@ -159,9 +165,14 @@ export default function GuestsPage() {
     setNewAlertTime('');
     loadGuestAlerts(g.id);
     if (IS_DEMO) {
-      setGuestReservations(
-        MOCK_RESERVATIONS.filter((r) => r.guest_id === g.id) as unknown as Reservation[]
-      );
+      try {
+        const json = await fetchApiJson<{ data: Reservation[] }>(
+          `/api/reservations?guest_id=${encodeURIComponent(g.id)}`
+        );
+        setGuestReservations(json.data);
+      } catch {
+        setGuestReservations([]);
+      }
       return;
     }
     const { data } = await supabase!
@@ -178,7 +189,13 @@ export default function GuestsPage() {
     notesTimer.current = setTimeout(async () => {
       if (!selected) return;
       setNotesSaving(true);
-      if (!IS_DEMO) {
+      if (IS_DEMO) {
+        await fetchApiJson('/api/guests', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selected.id, notes: value }),
+        }).catch(() => {});
+      } else {
         await supabase!.from('guests').update({ notes: value }).eq('id', selected.id);
       }
       setNotesSaving(false);
@@ -246,9 +263,10 @@ export default function GuestsPage() {
     if (!campaignSubject || !campaignBody) return;
     setCampaignSending(true);
     setCampaignResult(null);
+    setCampaignFailed(false);
     if (IS_DEMO) {
       await new Promise((r) => setTimeout(r, 800));
-      setCampaignResult(`Demo: email simulado para ${withEmail} hóspede(s).`);
+      setCampaignResult(t('guests.campaignDemo', { n: withEmail }));
       setCampaignSending(false);
       return;
     }
@@ -259,9 +277,14 @@ export default function GuestsPage() {
     });
     const json = await res.json();
     if (json.ok) {
-      setCampaignResult(`Enviado para ${json.sent} hóspede(s).`);
+      setCampaignResult(t('guests.campaignSent', { n: json.sent }));
     } else {
-      setCampaignResult(`Erro: ${json.error}`);
+      setCampaignFailed(true);
+      setCampaignResult(
+        typeof json.error === 'string' && json.error.includes('No guests with email')
+          ? t('guests.campaignNoEmail')
+          : t('guests.campaignError', { error: json.error ?? t('common.networkError') })
+      );
     }
     setCampaignSending(false);
   }
@@ -286,7 +309,7 @@ export default function GuestsPage() {
         <div className="p-4 border-b border-[#E0DBCF] space-y-3">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-serif font-bold text-[#4A4A4A]">
-              Hóspedes
+              {t('guests.title')}
               <span className="ml-2 text-sm font-sans font-normal text-[#888]">({guests.length})</span>
             </h1>
             <button
@@ -295,17 +318,17 @@ export default function GuestsPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#DAA520] hover:bg-[#B8860B] text-white text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
             >
               <Send size={12} aria-hidden />
-              Email ({withEmail})
+              {t('guests.emailAll', { n: withEmail })}
             </button>
           </div>
           <p className="text-xs text-[#888]">
-            CRM operacional com historico, notas e campanhas para relacionamento direto com o hospede.
+            {t('guests.subtitle')}
           </p>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#888]" aria-hidden />
             <input
               type="search"
-              placeholder="Pesquisar nome, email…"
+              placeholder={t('guests.search')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#E0DBCF] text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520]"
@@ -315,11 +338,11 @@ export default function GuestsPage() {
 
         <div className="flex-1 overflow-y-auto divide-y divide-[#F0EDE6]">
           {loading ? (
-            <div className="p-6 text-center text-[#888] text-sm">A carregar…</div>
+            <ListSkeleton rows={6} />
           ) : fetchError ? (
             <div className="p-6 text-center text-sm text-red-500">{fetchError}</div>
           ) : filtered.length === 0 ? (
-            <div className="p-6 text-center text-[#888] text-sm">Nenhum hóspede encontrado.</div>
+            <div className="p-6 text-center text-[#888] text-sm">{t('guests.empty')}</div>
           ) : (
             filtered.map((g) => (
               <button
@@ -337,13 +360,17 @@ export default function GuestsPage() {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-sm text-[#4A4A4A] truncate">{g.name}</p>
-                      <p className="text-xs text-[#888] truncate">{g.email ?? 'sem email'}</p>
+                      <p className="text-xs text-[#888] truncate">{g.email ?? t('common.noEmail')}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 w-20">
-                    <p className="text-xs text-[#888]">{g.reservation_count} estadia(s)</p>
+                    <p className="text-xs text-[#888]">
+                      {g.reservation_count === 1
+                        ? t('guests.staysCountOne')
+                        : t('guests.staysCountMany', { n: g.reservation_count })}
+                    </p>
                     {g.last_stay && (
-                      <p className="text-xs text-[#CCC]">{formatDatePT(g.last_stay)}</p>
+                      <p className="text-xs text-[#CCC]">{formatDate(g.last_stay, locale, DATE_NUM)}</p>
                     )}
                   </div>
                   <ChevronRight size={14} className="text-[#CCC] shrink-0" aria-hidden />
@@ -362,7 +389,7 @@ export default function GuestsPage() {
               type="button"
               onClick={() => setSelected(null)}
               className="lg:hidden p-1 rounded-lg text-[#888] hover:text-[#333] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DAA520]"
-              aria-label="Voltar"
+              aria-label={t('common.back')}
             >
               <ChevronRight size={18} className="rotate-180" aria-hidden />
             </button>
@@ -372,7 +399,7 @@ export default function GuestsPage() {
             <div>
               <h2 className="font-serif font-bold text-[#4A4A4A]">{selected.name}</h2>
               <p className="text-xs text-[#888]">
-                {selected.email ?? 'sem email'} {selected.nationality ? `· ${selected.nationality}` : ''}
+                {selected.email ?? t('common.noEmail')} {selected.nationality ? `· ${selected.nationality}` : ''}
               </p>
             </div>
           </div>
@@ -380,7 +407,7 @@ export default function GuestsPage() {
           <div className="p-5 space-y-6">
             {/* Contact info */}
             <section className="bg-white rounded-2xl border border-[#E0DBCF] p-4 space-y-2">
-              <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wide">Contacto</h3>
+              <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wide">{t('guests.contact')}</h3>
               {selected.email && (
                 <a href={`mailto:${selected.email}`} className="flex items-center gap-2 text-sm text-[#4A4A4A] hover:text-[#DAA520]">
                   <Mail size={14} aria-hidden />
@@ -389,26 +416,26 @@ export default function GuestsPage() {
               )}
               {selected.phone && <p className="text-sm text-[#4A4A4A]">📞 {selected.phone}</p>}
               {!selected.email && !selected.phone && (
-                <p className="text-sm text-[#888]">Sem dados de contacto</p>
+                <p className="text-sm text-[#888]">{t('guests.noContact')}</p>
               )}
             </section>
 
             {/* Stays */}
             <section>
               <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wide mb-2">
-                Estadias ({guestReservations.length})
+                {t('guests.stays', { n: guestReservations.length })}
               </h3>
               {guestReservations.length === 0 ? (
-                <p className="text-sm text-[#888]">Nenhuma estadia registada.</p>
+                <p className="text-sm text-[#888]">{t('guests.noStays')}</p>
               ) : (
                 <div className="space-y-2">
                   {guestReservations.map((r) => (
                     <div key={r.id} className="bg-white rounded-xl border border-[#E0DBCF] px-4 py-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium text-[#4A4A4A]">{r.room}</p>
+                          <p className="text-sm font-medium text-[#4A4A4A]">{displayRoomLabel(r.room, t)}</p>
                           <p className="text-xs text-[#888]">
-                            {formatDatePT(stripTZ(r.check_in))} → {formatDatePT(stripTZ(r.check_out))}
+                            {formatDate(stripTZ(r.check_in), locale, DATE_NUM)} → {formatDate(stripTZ(r.check_out), locale, DATE_NUM)}
                             {r.total_eur != null ? ` · €${Number(r.total_eur).toFixed(0)}` : ''}
                           </p>
                         </div>
@@ -417,7 +444,7 @@ export default function GuestsPage() {
                           r.channel === 'booking' ? 'bg-[#003580] text-white' :
                           'bg-[#708238] text-white'
                         }`}>
-                          {CHANNEL_LABEL[r.channel] ?? r.channel}
+                          {tChannel(t, r.channel)}
                         </span>
                       </div>
                     </div>
@@ -429,10 +456,10 @@ export default function GuestsPage() {
             {/* Notes */}
             <section>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wide">Notas privadas</h3>
+                <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wide">{t('guests.privateNotes')}</h3>
                 {notesSaving && (
                   <span className="text-xs text-[#888] flex items-center gap-1">
-                    <Loader2 size={11} className="animate-spin" aria-hidden /> A guardar…
+                    <Loader2 size={11} className="animate-spin" aria-hidden /> {t('common.saving')}
                   </span>
                 )}
               </div>
@@ -440,7 +467,7 @@ export default function GuestsPage() {
                 value={notes}
                 onChange={(e) => handleNotesChange(e.target.value)}
                 rows={4}
-                placeholder="Preferências, alergias, animais de estimação…"
+                placeholder={t('guests.notesPlaceholder')}
                 className="w-full rounded-xl border border-[#E0DBCF] px-3 py-2.5 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] resize-none bg-white"
               />
             </section>
@@ -450,7 +477,7 @@ export default function GuestsPage() {
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wide flex items-center gap-1.5">
                   <Bell size={12} aria-hidden />
-                  Lembretes
+                  {t('guests.reminders')}
                   {activeAlerts.length > 0 && (
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#DAA520] text-white text-[10px] font-bold leading-none">
                       {activeAlerts.length}
@@ -463,7 +490,7 @@ export default function GuestsPage() {
                   className="flex items-center gap-1 text-xs text-[#DAA520] hover:text-[#B8860B] font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#DAA520] rounded"
                 >
                   <Plus size={13} aria-hidden />
-                  Novo
+                  {t('guests.newShort')}
                 </button>
               </div>
 
@@ -473,19 +500,19 @@ export default function GuestsPage() {
                     value={newAlertMsg}
                     onChange={(e) => setNewAlertMsg(e.target.value)}
                     rows={2}
-                    placeholder="O que devo lembrar?"
+                    placeholder={t('guests.reminderPlaceholder')}
                     className="w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] resize-none bg-white"
                   />
 
                   {nextCheckIn && (
                     <div>
-                      <p className="text-[10px] text-[#888] mb-1.5">Atalho — próximo check-in ({formatDatePT(nextCheckIn.toISOString().split('T')[0])}):</p>
+                      <p className="text-[10px] text-[#888] mb-1.5">{t('guests.shortcutNextCheckin', { date: formatDate(nextCheckIn.toISOString().split('T')[0], locale, DATE_NUM) })}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {[
-                          { label: 'Dia do check-in', days: 0 },
-                          { label: '1 dia antes', days: 1 },
-                          { label: '3 dias antes', days: 3 },
-                          { label: '1 semana antes', days: 7 },
+                          { label: t('guests.presetCheckinDay'), days: 0 },
+                          { label: t('guests.preset1Day'), days: 1 },
+                          { label: t('guests.preset3Days'), days: 3 },
+                          { label: t('guests.preset1Week'), days: 7 },
                         ].map(({ label, days }) => (
                           <button
                             key={label}
@@ -513,7 +540,7 @@ export default function GuestsPage() {
                       onClick={() => { setShowAlertForm(false); setNewAlertMsg(''); setNewAlertTime(''); }}
                       className="flex-1 py-2 rounded-lg border border-[#E0DBCF] text-sm text-[#666] hover:bg-[#F0EDE6] transition-colors focus:outline-none"
                     >
-                      Cancelar
+                      {t('common.cancel')}
                     </button>
                     <button
                       type="button"
@@ -521,14 +548,14 @@ export default function GuestsPage() {
                       disabled={!newAlertMsg.trim() || !newAlertTime || alertSaving}
                       className="flex-1 py-2 rounded-lg bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-50 text-white text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
                     >
-                      {alertSaving ? 'A guardar…' : 'Criar lembrete'}
+                      {alertSaving ? t('common.saving') : t('guests.createReminder')}
                     </button>
                   </div>
                 </div>
               )}
 
               {activeAlerts.length === 0 ? (
-                <p className="text-sm text-[#888]">Nenhum lembrete para este hóspede.</p>
+                <p className="text-sm text-[#888]">{t('guests.noReminders')}</p>
               ) : (
                 <div className="space-y-2">
                   {activeAlerts.map((a) => {
@@ -546,15 +573,15 @@ export default function GuestsPage() {
                             <p className="text-sm text-[#4A4A4A] leading-snug">{a.message}</p>
                             <p className={`text-xs mt-0.5 ${isDue ? 'text-amber-600 font-medium' : 'text-[#888]'}`}>
                               {isDue ? '⚠ ' : isDelivered ? '✓ ' : ''}
-                              {formatDatetimePT(a.notify_at)}
-                              {isDelivered ? ' · Enviado' : ''}
+                              {formatDateTime(a.notify_at, locale)}
+                              {isDelivered ? ` · ${t('guests.sent')}` : ''}
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => deleteAlert(a.id)}
                             className="shrink-0 p-1 rounded-lg text-[#CCC] hover:text-red-400 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-red-400"
-                            aria-label="Apagar lembrete"
+                            aria-label={t('guests.deleteReminder')}
                           >
                             <X size={14} aria-hidden />
                           </button>
@@ -571,7 +598,7 @@ export default function GuestsPage() {
         <div className="hidden lg:flex flex-1 items-center justify-center text-[#888]">
           <div className="text-center">
             <User size={40} className="mx-auto mb-3 opacity-20" aria-hidden />
-            <p className="text-sm">Seleciona um hóspede para ver detalhes</p>
+            <p className="text-sm">{t('guests.pickGuest')}</p>
           </div>
         </div>
       )}
@@ -581,42 +608,42 @@ export default function GuestsPage() {
         <div className="fixed inset-0 z-50 flex cursor-default items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md cursor-default rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-[#E0DBCF]">
-              <h2 className="font-serif font-bold text-[#4A4A4A]">Enviar email a todos</h2>
+              <h2 className="font-serif font-bold text-[#4A4A4A]">{t('guests.campaignTitle')}</h2>
               <button
                 type="button"
                 onClick={() => setCampaignOpen(false)}
                 className="p-1.5 rounded-lg text-[#888] hover:bg-[#F0EDE6]"
-                aria-label="Fechar"
+                aria-label={t('common.close')}
               >
                 <X size={18} aria-hidden />
               </button>
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-[#888]">
-                Será enviado a todos os {withEmail} hóspede(s) com email registado.
+                {t('guests.campaignHint', { n: withEmail })}
               </p>
               <div>
-                <label className="block text-xs font-medium text-[#666] mb-1">Assunto</label>
+                <label className="block text-xs font-medium text-[#666] mb-1">{t('guests.subject')}</label>
                 <input
                   type="text"
                   value={campaignSubject}
                   onChange={(e) => setCampaignSubject(e.target.value)}
                   className="w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520]"
-                  placeholder="Temos disponibilidade em março!"
+                  placeholder={t('guests.campaignSubjectPlaceholder')}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#666] mb-1">Mensagem</label>
+                <label className="block text-xs font-medium text-[#666] mb-1">{t('guests.body')}</label>
                 <textarea
                   value={campaignBody}
                   onChange={(e) => setCampaignBody(e.target.value)}
                   rows={6}
                   className="w-full rounded-lg border border-[#E0DBCF] px-3 py-2 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#DAA520] resize-none"
-                  placeholder="Olá! Temos uma semana livre…"
+                  placeholder={t('guests.campaignBodyPlaceholder')}
                 />
               </div>
               {campaignResult && (
-                <p className={`text-sm rounded-lg px-3 py-2 ${campaignResult.startsWith('Erro') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+                <p className={`text-sm rounded-lg px-3 py-2 ${campaignFailed ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
                   {campaignResult}
                 </p>
               )}
@@ -627,9 +654,9 @@ export default function GuestsPage() {
                 className="w-full flex items-center justify-center gap-2 bg-[#DAA520] hover:bg-[#B8860B] disabled:opacity-60 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A4A4A]"
               >
                 {campaignSending ? (
-                  <><Loader2 size={14} className="animate-spin" aria-hidden /> A enviar…</>
+                  <><Loader2 size={14} className="animate-spin" aria-hidden /> {t('guests.sending')}</>
                 ) : (
-                  <><Send size={14} aria-hidden /> Enviar campanha</>
+                  <><Send size={14} aria-hidden /> {t('guests.sendCampaign')}</>
                 )}
               </button>
             </div>

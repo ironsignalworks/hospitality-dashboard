@@ -59,13 +59,13 @@ export async function POST(request: NextRequest) {
       const resend = getResend();
       const from = process.env.RESEND_FROM_EMAIL ?? 'geral@alentejostay.pt';
       for (const alert of dueAlerts as Array<{ id: string; message: string; notify_at: string; guest: { name: string }[] | null }>) {
-        const guestName = alert.guest?.[0]?.name ?? 'Hóspede';
+        const guestName = alert.guest?.[0]?.name ?? 'Guest';
         await resend.emails
           .send({
             from,
             to: ownerEmail,
-            subject: `Lembrete — ${guestName}`,
-            text: `Lembrete sobre o hóspede ${guestName}:\n\n${alert.message}\n\nDefinido para: ${new Date(alert.notify_at).toLocaleString('pt-PT')}`,
+            subject: `Reminder — ${guestName}`,
+            text: `Reminder about guest ${guestName}:\n\n${alert.message}\n\nSet for: ${new Date(alert.notify_at).toLocaleString('en-GB')}`,
           })
           .catch(() => {});
       }

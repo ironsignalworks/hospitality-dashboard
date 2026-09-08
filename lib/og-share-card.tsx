@@ -12,7 +12,7 @@ const SITE = 'hospitality-dashboard-theta.vercel.app';
 /** Satori/ImageResponse tree — flexbox only, inline styles. */
 export function OgShareCard() {
   const brand = getBrand();
-  const chips = ['Reservas', 'Hóspedes', 'Mensagens', 'Ocupação'];
+  const chips = ['Reservations', 'Guests', 'Messages', 'Occupancy'];
 
   return (
     <div
