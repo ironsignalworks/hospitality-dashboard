@@ -5,7 +5,7 @@ export const isoDate = z
   .trim()
   .min(1)
   .transform((value) => value.split('T')[0] ?? value)
-  .pipe(z.iso.date());
+  .pipe(z.string().date());
 
 export const channelSchema = z.enum(['airbnb', 'booking', 'direct']);
 export const reservationStatusSchema = z.enum([
@@ -18,7 +18,7 @@ export const reservationStatusSchema = z.enum([
 export const messageRoleSchema = z.enum(['guest', 'ai', 'owner']);
 
 export const emailValue = z
-  .union([z.email(), z.literal(''), z.null()])
+  .union([z.string().email(), z.literal(''), z.null()])
   .transform((value) => (value ? value : null));
 
 export const optionalEmail = emailValue.optional();

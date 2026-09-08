@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { isoDate, optionalEmail, optionalMoney, roomKeySchema } from './primitives';
 
-export const webhookEnvelopeSchema = z.looseObject({
-  type: z.string().optional(),
-  event: z.string().optional(),
-});
+export const webhookEnvelopeSchema = z
+  .object({
+    type: z.string().optional(),
+    event: z.string().optional(),
+  })
+  .passthrough();
 
 export const webhookStaySchema = z
-  .looseObject({
+  .object({
     check_in: z.string().optional(),
     check_in_date: z.string().optional(),
     arrival: z.string().optional(),
@@ -15,6 +17,7 @@ export const webhookStaySchema = z
     check_out_date: z.string().optional(),
     departure: z.string().optional(),
   })
+  .passthrough()
   .refine(
     (value) =>
       Boolean(
